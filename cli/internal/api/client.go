@@ -620,3 +620,316 @@ func stripStoragePrefix(name string) string {
 	}
 	return name
 }
+
+// =========================================================================
+// Room API Structs & Methods
+// =========================================================================
+
+// RoomParticipant represents a user in a room
+type RoomParticipant struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	IsCreator bool   `json:"isCreator"`
+	JoinedAt  int64  `json:"joinedAt"`
+}
+
+// RoomMessage represents a message or file share event in a room
+type RoomMessage struct {
+	ID         string `json:"id"`
+	Type       string `json:"type"` // "system", "chat", "file"
+	SenderID   string `json:"senderId"`
+	SenderName string `json:"senderName"`
+	Text       string `json:"text"`
+	FileID     string `json:"fileId,omitempty"`
+	FileName   string `json:"fileName,omitempty"`
+	FileSize   int64  `json:"fileSize,omitempty"`
+	Timestamp  int64  `json:"timestamp"`
+}
+
+// RoomFile represents a file uploaded to a room
+type RoomFile struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Size         int64  `json:"size"`
+	UploaderID   string `json:"uploaderId"`
+	UploaderName string `json:"uploaderName"`
+	UploadedAt   int64  `json:"uploadedAt"`
+}
+
+// RoomSyncResponse contains full state of a room
+type RoomSyncResponse struct {
+	RoomID          int               `json:"roomId"`
+	MaxParticipants int               `json:"maxParticipants"`
+	Participants    []RoomParticipant `json:"participants"`
+	Messages        []RoomMessage     `json:"messages"`
+	Files           []RoomFile        `json:"files"`
+}
+
+// CreateRoomResponse is returned by the server on room creation
+type CreateRoomResponse struct {
+	Status          string `json:"status"`
+	RoomID          int    `json:"roomId"`
+	Port            int    `json:"port"`
+	UserID          string `json:"userId"`
+	MaxParticipants int    `json:"maxParticipants"`
+	Message         string `json:"message,omitempty"`
+}
+
+// JoinRoomResponse is returned by the server when joining a room
+type JoinRoomResponse struct {
+	Status          string `json:"status"`
+	RoomID          int    `json:"roomId"`
+	Port            int    `json:"port"`
+	UserID          string `json:"userId"`
+	MaxParticipants int    `json:"maxParticipants"`
+	Message         string `json:"message,omitempty"`
+}
+
+// CreateRoom sends POST /api/rooms to create a new collaboration room.
+func (c *Client) CreateRoom(creatorName string, maxParticipants int, requestedPort int) (*CreateRoomResponse, error) {
+	url := c.BaseURL + "/api/rooms"
+	payload := map[string]interface{}{
+		"creatorName":     creatorName,
+		"maxParticipants": maxParticipants,
+	}
+	if requestedPort > 0 {
+		payload["port"] = requestedPort
+	}
+
+	bodyBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", url, strings.NewReader(string(bodyBytes)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to server: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	var roomResp CreateRoomResponse
+	if err := json.Unmarshal(respBody, &roomResp); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %s", string(respBody))
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		if roomResp.Message != "" {
+			return nil, fmt.Errorf("%s", roomResp.Message)
+		}
+		return nil, fmt.Errorf("server error (%d): %s", resp.StatusCode, string(respBody))
+	}
+
+	return &roomResp, nil
+}
+
+// JoinRoom sends POST /api/rooms/:port/join to join an existing room.
+func (c *Client) JoinRoom(port int, userName string) (*JoinRoomResponse, error) {
+	url := fmt.Sprintf("%s/api/rooms/%d/join", c.BaseURL, port)
+	payload := map[string]interface{}{
+		"userName": userName,
+	}
+
+	bodyBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", url, strings.NewReader(string(bodyBytes)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to server: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	var joinResp JoinRoomResponse
+	if err := json.Unmarshal(respBody, &joinResp); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %s", string(respBody))
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		if joinResp.Message != "" {
+			return nil, fmt.Errorf("%s", joinResp.Message)
+		}
+		return nil, fmt.Errorf("server error (%d): %s", resp.StatusCode, string(respBody))
+	}
+
+	return &joinResp, nil
+}
+
+// LeaveRoom sends POST /api/rooms/:port/leave to leave a room.
+func (c *Client) LeaveRoom(port int, userId string) error {
+	url := fmt.Sprintf("%s/api/rooms/%d/leave", c.BaseURL, port)
+	req, err := http.NewRequest("POST", url, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("X-User-Id", userId)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return nil
+}
+
+// SyncRoom retrieves messages, members, and files for a room.
+func (c *Client) SyncRoom(port int, userId string, since int64) (*RoomSyncResponse, error) {
+	url := fmt.Sprintf("%s/api/rooms/%d/sync?since=%d", c.BaseURL, port, since)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-User-Id", userId)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to sync room (%d): %s", resp.StatusCode, string(b))
+	}
+
+	var syncResp RoomSyncResponse
+	if err := json.NewDecoder(resp.Body).Decode(&syncResp); err != nil {
+		return nil, fmt.Errorf("failed to decode sync response: %w", err)
+	}
+
+	return &syncResp, nil
+}
+
+// SendRoomMessage sends a text message to a room.
+func (c *Client) SendRoomMessage(port int, userId string, text string) error {
+	url := fmt.Sprintf("%s/api/rooms/%d/messages", c.BaseURL, port)
+	payload := map[string]string{"text": text}
+	b, _ := json.Marshal(payload)
+
+	req, err := http.NewRequest("POST", url, strings.NewReader(string(b)))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-User-Id", userId)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respB, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to send message: %s", string(respB))
+	}
+	return nil
+}
+
+// UploadRoomFiles uploads one or more files to a room with an optional note.
+func (c *Client) UploadRoomFiles(port int, userId string, filePaths []string, note string) error {
+	url := fmt.Sprintf("%s/api/rooms/%d/upload", c.BaseURL, port)
+
+	pr, pw := io.Pipe()
+	writer := multipart.NewWriter(pw)
+
+	go func() {
+		defer pw.Close()
+		defer writer.Close()
+
+		_ = writer.WriteField("userId", userId)
+		if note != "" {
+			_ = writer.WriteField("note", note)
+		}
+
+		for _, filePath := range filePaths {
+			file, err := os.Open(filePath)
+			if err != nil {
+				pw.CloseWithError(fmt.Errorf("failed to open %s: %w", filePath, err))
+				return
+			}
+
+			part, err := writer.CreateFormFile("files", filepath.Base(filePath))
+			if err != nil {
+				file.Close()
+				pw.CloseWithError(err)
+				return
+			}
+
+			_, err = io.Copy(part, file)
+			file.Close()
+			if err != nil {
+				pw.CloseWithError(err)
+				return
+			}
+		}
+	}()
+
+	req, err := http.NewRequest("POST", url, pr)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("X-User-Id", userId)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respB, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to upload files (%d): %s", resp.StatusCode, string(respB))
+	}
+	return nil
+}
+
+// DownloadRoomFile downloads a file from a room.
+func (c *Client) DownloadRoomFile(port int, fileId string, destDir string) (string, error) {
+	url := fmt.Sprintf("%s/api/rooms/%d/files/%s", c.BaseURL, port, fileId)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
+		return "", fmt.Errorf("file download failed with status %d", resp.StatusCode)
+	}
+
+	filename := resolveDownloadFilename(resp.Header)
+	outPath := filepath.Join(destDir, filename)
+
+	outFile, err := os.Create(outPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create destination file: %w", err)
+	}
+	defer outFile.Close()
+
+	if _, err := io.Copy(outFile, resp.Body); err != nil {
+		return "", fmt.Errorf("failed to stream download: %w", err)
+	}
+
+	return outPath, nil
+}
+

@@ -10,6 +10,8 @@
 #include <thread>
 #include <sstream>
 #include <stdexcept>
+#include <regex>
+#include <algorithm>
 
 namespace fs = std::filesystem;
 
@@ -74,6 +76,60 @@ namespace server::services
             }
         }
 
+        std::string extractJsonString(const std::string &json, const std::string &key)
+        {
+            std::regex re("\"" + key + "\"\\s*:\\s*\"([^\"]*)\"");
+            std::smatch m;
+            if (std::regex_search(json, m, re) && m.size() > 1)
+            {
+                return m[1].str();
+            }
+            return "";
+        }
+
+        int extractJsonInt(const std::string &json, const std::string &key, int defaultVal)
+        {
+            std::regex re("\"" + key + "\"\\s*:\\s*(\\d+)");
+            std::smatch m;
+            if (std::regex_search(json, m, re) && m.size() > 1)
+            {
+                try
+                {
+                    return std::stoi(m[1].str());
+                }
+                catch (...)
+                {
+                }
+            }
+            return defaultVal;
+        }
+
+        std::string getMimeTypeForFilename(const std::string &name)
+        {
+            std::string ext = fs::path(name).extension().string();
+            std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+            if (ext == ".jpg" || ext == ".jpeg")
+                return "image/jpeg";
+            if (ext == ".png")
+                return "image/png";
+            if (ext == ".gif")
+                return "image/gif";
+            if (ext == ".webp")
+                return "image/webp";
+            if (ext == ".svg")
+                return "image/svg+xml";
+            if (ext == ".pdf")
+                return "application/pdf";
+            if (ext == ".txt")
+                return "text/plain";
+            if (ext == ".json")
+                return "application/json";
+            if (ext == ".mp4")
+                return "video/mp4";
+            if (ext == ".mp3")
+                return "audio/mpeg";
+            return "application/octet-stream";
+        }
     } // namespace
 
     FileController::FileController(int port)
@@ -169,6 +225,7 @@ namespace server::services
             if (serverThread_.joinable())
                 serverThread_.join();
             fileSharer_.shutdown();
+            roomManager_.shutdown();
             return;
         }
 
@@ -176,6 +233,7 @@ namespace server::services
         if (serverThread_.joinable())
             serverThread_.join();
         fileSharer_.shutdown();
+        roomManager_.shutdown();
         server::log::info("API server stopped");
     }
 
@@ -197,6 +255,28 @@ namespace server::services
 
         server_.Get(R"(/api/download/(\d+))", [this](const httplib::Request &req, httplib::Response &res)
                     { handleDownload(req, res); });
+
+        // Room-based collaboration routes
+        server_.Post("/api/rooms", [this](const httplib::Request &req, httplib::Response &res)
+                     { handleRoomCreate(req, res); });
+
+        server_.Post(R"(/api/rooms/(\d+)/join)", [this](const httplib::Request &req, httplib::Response &res)
+                     { handleRoomJoin(req, res); });
+
+        server_.Post(R"(/api/rooms/(\d+)/leave)", [this](const httplib::Request &req, httplib::Response &res)
+                     { handleRoomLeave(req, res); });
+
+        server_.Get(R"(/api/rooms/(\d+)/sync)", [this](const httplib::Request &req, httplib::Response &res)
+                    { handleRoomSync(req, res); });
+
+        server_.Post(R"(/api/rooms/(\d+)/messages)", [this](const httplib::Request &req, httplib::Response &res)
+                     { handleRoomMessage(req, res); });
+
+        server_.Post(R"(/api/rooms/(\d+)/upload)", [this](const httplib::Request &req, httplib::Response &res)
+                     { handleRoomUpload(req, res); });
+
+        server_.Get(R"(/api/rooms/(\d+)/files/([^/]+))", [this](const httplib::Request &req, httplib::Response &res)
+                    { handleRoomFileDownload(req, res); });
 
         // Legacy paths (Java-style)
         server_.Post("/upload", [this](const httplib::Request &req, httplib::Response &res)
@@ -538,6 +618,382 @@ namespace server::services
             res.status = 500;
             res.set_content(std::string("Error downloading file: ") + e.what(), "text/plain");
         }
+    }
+
+    void FileController::handleRoomCreate(const httplib::Request &req, httplib::Response &res)
+    {
+        applyCorsHeaders(res);
+        if (req.method != "POST")
+        {
+            res.status = 405;
+            res.set_content("Method Not Allowed", "text/plain");
+            return;
+        }
+
+        std::string creatorName = extractJsonString(req.body, "creatorName");
+        if (creatorName.empty())
+            creatorName = req.has_param("creatorName") ? req.get_param_value("creatorName") : "Host";
+
+        int maxParticipants = extractJsonInt(req.body, "maxParticipants", 5);
+        if (req.has_param("maxParticipants"))
+        {
+            try { maxParticipants = std::stoi(req.get_param_value("maxParticipants")); } catch (...) {}
+        }
+
+        int requestedPort = extractJsonInt(req.body, "port", 0);
+        if (req.has_param("port"))
+        {
+            try { requestedPort = std::stoi(req.get_param_value("port")); } catch (...) {}
+        }
+
+        std::string userId;
+        int port = 0;
+        std::string error;
+        if (!roomManager_.createRoom(requestedPort, maxParticipants, creatorName, userId, port, error))
+        {
+            res.status = 400;
+            res.set_content("{\"status\":\"error\",\"message\":\"" + error + "\"}", "application/json");
+            return;
+        }
+
+        server::log::info("Room created: port=" + std::to_string(port) + " creator=" + creatorName + " max=" + std::to_string(maxParticipants));
+        res.status = 200;
+        res.set_content("{\"status\":\"ok\",\"roomId\":" + std::to_string(port) + ",\"port\":" + std::to_string(port) +
+                        ",\"userId\":\"" + userId + "\",\"maxParticipants\":" + std::to_string(maxParticipants) + "}",
+                        "application/json");
+    }
+
+    void FileController::handleRoomJoin(const httplib::Request &req, httplib::Response &res)
+    {
+        applyCorsHeaders(res);
+        if (req.method != "POST")
+        {
+            res.status = 405;
+            res.set_content("Method Not Allowed", "text/plain");
+            return;
+        }
+
+        int port = 0;
+        try
+        {
+            port = std::stoi(req.matches[1].str());
+        }
+        catch (...)
+        {
+            res.status = 400;
+            res.set_content("{\"status\":\"error\",\"message\":\"Invalid room port\"}", "application/json");
+            return;
+        }
+
+        std::string userName = extractJsonString(req.body, "userName");
+        if (userName.empty() && req.has_param("userName"))
+            userName = req.get_param_value("userName");
+        if (userName.empty())
+            userName = "Guest";
+
+        std::string userId;
+        int maxParticipants = 0;
+        std::string error;
+        if (!roomManager_.joinRoom(port, userName, userId, maxParticipants, error))
+        {
+            res.status = (error.find("full") != std::string::npos) ? 409 : 404;
+            res.set_content("{\"status\":\"error\",\"message\":\"" + error + "\"}", "application/json");
+            return;
+        }
+
+        server::log::info("User joined room: port=" + std::to_string(port) + " user=" + userName + " id=" + userId);
+        res.status = 200;
+        res.set_content("{\"status\":\"ok\",\"roomId\":" + std::to_string(port) + ",\"port\":" + std::to_string(port) +
+                        ",\"userId\":\"" + userId + "\",\"maxParticipants\":" + std::to_string(maxParticipants) + "}",
+                        "application/json");
+    }
+
+    void FileController::handleRoomLeave(const httplib::Request &req, httplib::Response &res)
+    {
+        applyCorsHeaders(res);
+        if (req.method != "POST")
+        {
+            res.status = 405;
+            res.set_content("Method Not Allowed", "text/plain");
+            return;
+        }
+
+        int port = 0;
+        try { port = std::stoi(req.matches[1].str()); } catch (...) {
+            res.status = 400;
+            res.set_content("{\"status\":\"error\",\"message\":\"Invalid room port\"}", "application/json");
+            return;
+        }
+
+        std::string userId = req.get_header_value("X-User-Id");
+        if (userId.empty())
+            userId = extractJsonString(req.body, "userId");
+        if (userId.empty() && req.has_param("userId"))
+            userId = req.get_param_value("userId");
+
+        std::string error;
+        roomManager_.leaveRoom(port, userId, error);
+        res.status = 200;
+        res.set_content("{\"status\":\"ok\"}", "application/json");
+    }
+
+    void FileController::handleRoomSync(const httplib::Request &req, httplib::Response &res)
+    {
+        applyCorsHeaders(res);
+
+        int port = 0;
+        try { port = std::stoi(req.matches[1].str()); } catch (...) {
+            res.status = 400;
+            res.set_content("{\"status\":\"error\",\"message\":\"Invalid room port\"}", "application/json");
+            return;
+        }
+
+        std::string userId = req.get_header_value("X-User-Id");
+        if (userId.empty() && req.has_param("userId"))
+            userId = req.get_param_value("userId");
+
+        int64_t sinceMs = 0;
+        if (req.has_param("since"))
+        {
+            try { sinceMs = std::stoll(req.get_param_value("since")); } catch (...) {}
+        }
+
+        std::string json;
+        std::string error;
+        if (!roomManager_.getRoomSync(port, userId, sinceMs, json, error))
+        {
+            res.status = 404;
+            res.set_content("{\"status\":\"error\",\"message\":\"" + error + "\"}", "application/json");
+            return;
+        }
+
+        res.status = 200;
+        res.set_content(json, "application/json");
+    }
+
+    void FileController::handleRoomMessage(const httplib::Request &req, httplib::Response &res)
+    {
+        applyCorsHeaders(res);
+        if (req.method != "POST")
+        {
+            res.status = 405;
+            res.set_content("Method Not Allowed", "text/plain");
+            return;
+        }
+
+        int port = 0;
+        try { port = std::stoi(req.matches[1].str()); } catch (...) {
+            res.status = 400;
+            res.set_content("{\"status\":\"error\",\"message\":\"Invalid room port\"}", "application/json");
+            return;
+        }
+
+        std::string userId = req.get_header_value("X-User-Id");
+        if (userId.empty())
+            userId = extractJsonString(req.body, "userId");
+        if (userId.empty() && req.has_param("userId"))
+            userId = req.get_param_value("userId");
+
+        std::string text = extractJsonString(req.body, "text");
+        if (text.empty() && req.has_param("text"))
+            text = req.get_param_value("text");
+
+        if (text.empty())
+        {
+            res.status = 400;
+            res.set_content("{\"status\":\"error\",\"message\":\"Message text cannot be empty\"}", "application/json");
+            return;
+        }
+
+        service::RoomMessage outMsg;
+        std::string error;
+        if (!roomManager_.addMessage(port, userId, text, outMsg, error))
+        {
+            res.status = 400;
+            res.set_content("{\"status\":\"error\",\"message\":\"" + error + "\"}", "application/json");
+            return;
+        }
+
+        res.status = 200;
+        res.set_content("{\"status\":\"ok\",\"messageId\":\"" + outMsg.id + "\"}", "application/json");
+    }
+
+    void FileController::handleRoomUpload(const httplib::Request &req, httplib::Response &res)
+    {
+        applyCorsHeaders(res);
+        if (req.method != "POST")
+        {
+            res.status = 405;
+            res.set_content("Method Not Allowed", "text/plain");
+            return;
+        }
+
+        int port = 0;
+        try { port = std::stoi(req.matches[1].str()); } catch (...) {
+            res.status = 400;
+            res.set_content("{\"status\":\"error\",\"message\":\"Invalid room port\"}", "application/json");
+            return;
+        }
+
+        const std::string contentType = req.get_header_value("Content-Type");
+        if (contentType.empty() || contentType.find("multipart/form-data") == std::string::npos)
+        {
+            res.status = 400;
+            res.set_content("{\"status\":\"error\",\"message\":\"Content-Type must be multipart/form-data\"}", "application/json");
+            return;
+        }
+
+        std::string userId = req.get_header_value("X-User-Id");
+        if (userId.empty() && req.form.has_field("userId"))
+            userId = req.form.get_field("userId");
+
+        std::string note;
+        if (req.form.has_field("note"))
+            note = req.form.get_field("note");
+
+        if (req.form.files.empty())
+        {
+            res.status = 400;
+            res.set_content("{\"status\":\"error\",\"message\":\"No file uploaded in form\"}", "application/json");
+            return;
+        }
+
+        std::vector<service::RoomFile> uploadedFiles;
+        std::string uploadError;
+
+        for (const auto &[fieldName, fileData] : req.form.files)
+        {
+            if (fileData.content.empty())
+                continue;
+
+            const std::string displayName = sanitizeDisplayFilename(fileData.filename);
+            const std::string uniqueName = makeUniqueName(displayName);
+            const fs::path diskPath = uploadDir_ / uniqueName;
+
+            {
+                std::ofstream fos(diskPath, std::ios::binary);
+                fos.write(fileData.content.data(), static_cast<std::streamsize>(fileData.content.size()));
+                if (!fos)
+                {
+                    uploadError = "Failed to write file to disk: " + displayName;
+                    break;
+                }
+            }
+
+            service::RoomFile rf;
+            service::RoomMessage rm;
+            std::string err;
+            if (!roomManager_.addFile(port, userId, diskPath.string(), displayName, fileData.content.size(), note, rf, rm, err))
+            {
+                std::error_code ec;
+                fs::remove(diskPath, ec);
+                uploadError = err;
+                break;
+            }
+
+            uploadedFiles.push_back(rf);
+            server::log::info("File shared in room " + std::to_string(port) + ": " + displayName +
+                              " (" + std::to_string(rf.sizeBytes) + " bytes) by user " + userId);
+        }
+
+        if (!uploadError.empty() && uploadedFiles.empty())
+        {
+            res.status = 400;
+            res.set_content("{\"status\":\"error\",\"message\":\"" + uploadError + "\"}", "application/json");
+            return;
+        }
+
+        std::string json = "{\"status\":\"ok\",\"files\":[";
+        for (std::size_t i = 0; i < uploadedFiles.size(); ++i)
+        {
+            if (i > 0) json += ",";
+            json += "{\"id\":\"" + uploadedFiles[i].id + "\",\"name\":\"" +
+                    uploadedFiles[i].originalName + "\",\"size\":" +
+                    std::to_string(uploadedFiles[i].sizeBytes) + "}";
+        }
+        json += "]}";
+
+        res.status = 200;
+        res.set_content(json, "application/json");
+    }
+
+    void FileController::handleRoomFileDownload(const httplib::Request &req, httplib::Response &res)
+    {
+        applyCorsHeaders(res);
+
+        int port = 0;
+        try { port = std::stoi(req.matches[1].str()); } catch (...) {
+            res.status = 400;
+            res.set_content("Invalid room port", "text/plain");
+            return;
+        }
+
+        std::string fileId = req.matches[2].str();
+        service::RoomFile roomFile;
+        if (!roomManager_.getRoomFile(port, fileId, roomFile))
+        {
+            res.status = 404;
+            res.set_content("File not found in room", "text/plain");
+            return;
+        }
+
+        const fs::path diskPath(roomFile.diskPath);
+        if (!fs::exists(diskPath) || !fs::is_regular_file(diskPath))
+        {
+            res.status = 404;
+            res.set_content("File not found on server disk", "text/plain");
+            return;
+        }
+
+        const auto fileSize = static_cast<std::size_t>(fs::file_size(diskPath));
+        const std::string &filename = roomFile.originalName;
+
+        const std::string mime = getMimeTypeForFilename(filename);
+        const bool inlineView = req.has_param("inline");
+
+        setHeaderOnce(res, "Accept-Ranges", "bytes");
+        if (inlineView)
+        {
+            setHeaderOnce(res, "Content-Disposition", "inline; filename=\"" + filename + "\"");
+        }
+        else
+        {
+            setHeaderOnce(res, "Content-Disposition", "attachment; filename=\"" + filename + "\"");
+        }
+        setHeaderOnce(res, "X-Filename", filename);
+
+        auto filePathPtr = std::make_shared<std::string>(roomFile.diskPath);
+
+        res.set_content_provider(
+            fileSize,
+            mime,
+            [filePathPtr](std::size_t offset, std::size_t length, httplib::DataSink &sink) -> bool
+            {
+                std::ifstream file(*filePathPtr, std::ios::binary);
+                if (!file)
+                    return false;
+
+                file.seekg(static_cast<std::streamoff>(offset));
+                if (!file.good())
+                    return false;
+
+                char buffer[65536];
+                std::size_t remaining = length;
+                while (remaining > 0)
+                {
+                    const auto toRead = std::min(sizeof(buffer), remaining);
+                    file.read(buffer, static_cast<std::streamsize>(toRead));
+                    const auto n = static_cast<std::size_t>(file.gcount());
+                    if (n == 0)
+                        break;
+                    if (!sink.write(buffer, n))
+                        return false;
+                    remaining -= n;
+                }
+                return true;
+            });
+
+        res.status = 200;
     }
 
 } // namespace server::services

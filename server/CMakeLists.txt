@@ -9,6 +9,7 @@ add_executable(server
   src/app.cpp
   src/logging.cpp
   src/services/fileSharer.cpp
+  src/services/roomManager.cpp
   src/services/fileController.cpp
   src/utils/uploadUtils.cpp
 )

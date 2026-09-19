@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import FileUpload from '@/components/FileUpload';
 import FileDownload from '@/components/FileDownload';
 import InviteCode from '@/components/InviteCode';
+import RoomView from '@/components/RoomView';
 import axios from 'axios';
 import { apiUrl, API_BASE_URL } from '@/lib/api';
 import { sitePath, githubPagesUrl } from '@/lib/site';
@@ -27,7 +28,7 @@ export default function Home() {
   const [port, setPort] = useState<number | null>(null);
   const [maxDownloads, setMaxDownloads] = useState(DEFAULT_MAX_DOWNLOADS);
   const [inviteMaxDownloads, setInviteMaxDownloads] = useState(DEFAULT_MAX_DOWNLOADS);
-  const [activeTab, setActiveTab] = useState<'upload' | 'download'>('upload');
+  const [activeTab, setActiveTab] = useState<'upload' | 'download' | 'rooms'>('upload');
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -169,6 +170,18 @@ export default function Home() {
             >
               Receive a File
             </button>
+            <button
+              className={`px-4 py-2 font-medium flex items-center gap-1.5 ${activeTab === 'rooms'
+                ? 'text-blue-600 border-b-2 border-blue-600'
+                : 'text-gray-500 hover:text-gray-700'
+                }`}
+              onClick={() => setActiveTab('rooms')}
+            >
+              <span>Rooms</span>
+              <span className="text-[10px] uppercase font-bold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
+                Chat &amp; Share
+              </span>
+            </button>
           </div>
 
           {activeTab === 'upload' && (
@@ -218,7 +231,7 @@ export default function Home() {
 
             <InviteCode port={port} maxDownloads={inviteMaxDownloads} />
           </div>
-        ) : (
+        ) : activeTab === 'download' ? (
           <div>
             <FileDownload onDownload={handleDownload} isDownloading={isDownloading} />
 
@@ -229,6 +242,8 @@ export default function Home() {
               </div>
             )}
           </div>
+        ) : (
+          <RoomView />
         )}
       </div>
 

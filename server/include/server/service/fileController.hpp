@@ -7,6 +7,7 @@
 
 #include "server/httplib/httplib.hpp"
 #include "server/service/fileSharer.hpp"
+#include "server/service/roomManager.hpp"
 
 namespace server::services
 {
@@ -35,6 +36,15 @@ namespace server::services
         // Java: DownloadHandler
         void handleDownload(const httplib::Request &req, httplib::Response &res);
 
+        // Room Handlers
+        void handleRoomCreate(const httplib::Request &req, httplib::Response &res);
+        void handleRoomJoin(const httplib::Request &req, httplib::Response &res);
+        void handleRoomLeave(const httplib::Request &req, httplib::Response &res);
+        void handleRoomSync(const httplib::Request &req, httplib::Response &res);
+        void handleRoomMessage(const httplib::Request &req, httplib::Response &res);
+        void handleRoomUpload(const httplib::Request &req, httplib::Response &res);
+        void handleRoomFileDownload(const httplib::Request &req, httplib::Response &res);
+
         static std::string sanitizeDisplayFilename(const std::string &originalFilename);
         static std::string makeUniqueName(const std::string &originalFilename);
 
@@ -42,6 +52,7 @@ namespace server::services
         static bool parsePortFromPath(const std::string &path, int &outPort);
 
         service::FileSharer fileSharer_;
+        service::RoomManager roomManager_;
         httplib::Server server_;
         std::filesystem::path uploadDir_;
         int port_;
