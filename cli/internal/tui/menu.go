@@ -6,11 +6,9 @@
 // It provides a friendly, menu-driven interface for all Transfera features:
 //   1. Upload a file
 //   2. Download a file
-//   3. Health check
-//   4. Install to PATH
-//   5. Change server URL
-//   6. Help
-//   7. Exit
+//   3. Install to PATH
+//   4. Help
+//   5. Exit
 
 package tui
 
@@ -56,7 +54,7 @@ func RunMenu(apiURL *string, verbose *bool) {
 	reader := bufio.NewReader(os.Stdin)
 
 	clearScreen()
-	printBanner(*apiURL)
+	printBanner()
 
 	for {
 		printMenu(*apiURL)
@@ -97,7 +95,7 @@ func clearScreen() {
 	fmt.Print("\033[2J\033[H")
 }
 
-func printBanner(apiURL string) {
+func printBanner() {
 	fmt.Println()
 	fmt.Print(colorCyan, colorBold)
 	fmt.Println("   ___________                          _____")
@@ -110,9 +108,6 @@ func printBanner(apiURL string) {
 	fmt.Println()
 	fmt.Printf("  %s%sSecure P2P File Sharing — Terminal Edition%s\n", colorDim, colorWhite, colorReset)
 	fmt.Println()
-
-	// Connection status
-	fmt.Printf("  %s● Server:%s %s\n", colorDim, colorReset, apiURL)
 
 	// PATH installation status
 	if installer.IsInPath() && installer.IsInstalled() {
@@ -483,6 +478,9 @@ func handleHelp() {
 	fmt.Printf("  %sDownload a file:%s\n", colorBold, colorReset)
 	fmt.Printf("    transfera download 52341\n")
 	fmt.Printf("    transfera download 52341 -o ~/Pictures/\n\n")
+	fmt.Printf("  %sCollaborative rooms:%s\n", colorBold, colorReset)
+	fmt.Printf("    transfera room create --name Alice -i\n")
+	fmt.Printf("    transfera room join 52341 --name Bob -i\n\n")
 	fmt.Printf("  %sHealth check:%s\n", colorBold, colorReset)
 	fmt.Printf("    transfera health\n\n")
 	fmt.Printf("  %sGlobal flags:%s\n", colorBold, colorReset)

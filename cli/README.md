@@ -4,20 +4,25 @@ A command-line client for [Transfera](../README.md) — secure P2P file sharing,
 
 ## Quick Start
 
-### Prerequisites
+### Install (One-Liner)
 
-- [Go 1.21+](https://go.dev/dl/) installed
-- Connects out-of-the-box to the official production server (`https://transfera-api.onrender.com`). No local server setup required!
+**Windows** (PowerShell):
+```powershell
+irm https://raw.githubusercontent.com/dasanik2001/transfera-client/main/install.ps1 | iex
+```
 
-### Install & Build
+**macOS / Linux** (Homebrew):
+```bash
+brew install dasanik2001/tap/transfera
+```
+
+### Build from Source (Optional)
+
+Requires [Go 1.21+](https://go.dev/dl/):
 
 ```bash
-cd CLI_go
-
-# Download dependencies
+cd cli
 go mod tidy
-
-# Build the binary
 go build -o transfera.exe .     # Windows
 go build -o transfera .         # Linux/macOS
 ```
@@ -190,7 +195,7 @@ GOOS=windows GOARCH=amd64 go build -o transfera.exe .
 ## Architecture
 
 ```
-CLI_go/
+cli/
 ├── main.go                      # Entry point (calls cmd.Execute())
 ├── cmd/
 │   ├── root.go                  # Root command, global flags, TUI trigger
