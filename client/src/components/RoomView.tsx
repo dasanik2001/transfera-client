@@ -51,7 +51,6 @@ export default function RoomView() {
   const [inRoom, setInRoom] = useState(false);
   const [roomId, setRoomId] = useState<number | null>(null);
   const [userId, setUserId] = useState<string>('');
-  const [myName, setMyName] = useState<string>('');
 
   // Create form
   const [createName, setCreateName] = useState('');
@@ -139,7 +138,6 @@ export default function RoomView() {
       const res = await createRoom(createName, createCapacity, portNum);
       setRoomId(res.roomId);
       setUserId(res.userId);
-      setMyName(createName.trim() || 'Host');
       setMaxCapacity(res.maxParticipants);
       setInRoom(true);
     } catch (err: unknown) {
@@ -167,7 +165,6 @@ export default function RoomView() {
       const res = await joinRoom(portNum, joinName);
       setRoomId(res.roomId);
       setUserId(res.userId);
-      setMyName(joinName.trim() || 'Guest');
       setMaxCapacity(res.maxParticipants);
       setInRoom(true);
     } catch (err: unknown) {
@@ -589,6 +586,7 @@ export default function RoomView() {
                   {/* Image Preview if applicable */}
                   {isImage && previewUrl && (
                     <div className="mb-2 rounded-lg overflow-hidden border bg-gray-100 max-h-48 flex items-center justify-center">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={previewUrl}
                         alt={msg.fileName || 'Shared file'}
