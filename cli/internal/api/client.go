@@ -17,6 +17,7 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json" // json — encode/decode JSON (for parsing server responses)
 	"fmt"           // fmt — string formatting (building error messages)
 	"io"            // io — input/output interfaces (streaming data between sources)
@@ -932,4 +933,35 @@ func (c *Client) DownloadRoomFile(port int, fileId string, destDir string) (stri
 
 	return outPath, nil
 }
+
+// RemoveRoomParticipant removes a participant from a room.
+func (c *Client) RemoveRoomParticipant(port int, byUserId string, targetUserId string) error {
+	url := fmt.Sprintf("%s/api/rooms/%d/remove", c.BaseURL, port)
+	payload := map[string]string{
+		"byUserId":     byUserId,
+		"targetUserId": targetUserId,
+	}
+	body, _ := json.Marshal(payload)
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if byUserId != "" {
+		req.Header.Set("X-User-Id", byUserId)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respB, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to remove participant (%d): %s", resp.StatusCode, string(respB))
+	}
+	return nil
+}
+
 

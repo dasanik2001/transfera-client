@@ -266,6 +266,12 @@ namespace server::services
         server_.Post(R"(/api/rooms/(\d+)/leave)", [this](const httplib::Request &req, httplib::Response &res)
                      { handleRoomLeave(req, res); });
 
+        server_.Post(R"(/api/rooms/(\d+)/remove)", [this](const httplib::Request &req, httplib::Response &res)
+                     { handleRoomRemove(req, res); });
+
+        server_.Post(R"(/api/rooms/(\d+)/kick)", [this](const httplib::Request &req, httplib::Response &res)
+                     { handleRoomRemove(req, res); });
+
         server_.Get(R"(/api/rooms/(\d+)/sync)", [this](const httplib::Request &req, httplib::Response &res)
                     { handleRoomSync(req, res); });
 
@@ -733,6 +739,52 @@ namespace server::services
 
         std::string error;
         roomManager_.leaveRoom(port, userId, error);
+        res.status = 200;
+        res.set_content("{\"status\":\"ok\"}", "application/json");
+    }
+
+    void FileController::handleRoomRemove(const httplib::Request &req, httplib::Response &res)
+    {
+        applyCorsHeaders(res);
+        if (req.method != "POST")
+        {
+            res.status = 405;
+            res.set_content("Method Not Allowed", "text/plain");
+            return;
+        }
+
+        int port = 0;
+        try { port = std::stoi(req.matches[1].str()); } catch (...) {
+            res.status = 400;
+            res.set_content("{\"status\":\"error\",\"message\":\"Invalid room port\"}", "application/json");
+            return;
+        }
+
+        std::string byUserId = req.get_header_value("X-User-Id");
+        if (byUserId.empty())
+            byUserId = extractJsonString(req.body, "byUserId");
+        if (byUserId.empty() && req.has_param("byUserId"))
+            byUserId = req.get_param_value("byUserId");
+
+        std::string targetUserId = extractJsonString(req.body, "targetUserId");
+        if (targetUserId.empty() && req.has_param("targetUserId"))
+            targetUserId = req.get_param_value("targetUserId");
+
+        if (targetUserId.empty())
+        {
+            res.status = 400;
+            res.set_content("{\"status\":\"error\",\"message\":\"Missing targetUserId\"}", "application/json");
+            return;
+        }
+
+        std::string error;
+        if (!roomManager_.removeParticipant(port, byUserId, targetUserId, error))
+        {
+            res.status = 400;
+            res.set_content("{\"status\":\"error\",\"message\":\"" + error + "\"}", "application/json");
+            return;
+        }
+
         res.status = 200;
         res.set_content("{\"status\":\"ok\"}", "application/json");
     }

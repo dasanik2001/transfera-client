@@ -40,6 +40,7 @@ namespace server::services
         void handleRoomCreate(const httplib::Request &req, httplib::Response &res);
         void handleRoomJoin(const httplib::Request &req, httplib::Response &res);
         void handleRoomLeave(const httplib::Request &req, httplib::Response &res);
+        void handleRoomRemove(const httplib::Request &req, httplib::Response &res);
         void handleRoomSync(const httplib::Request &req, httplib::Response &res);
         void handleRoomMessage(const httplib::Request &req, httplib::Response &res);
         void handleRoomUpload(const httplib::Request &req, httplib::Response &res);

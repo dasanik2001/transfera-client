@@ -143,3 +143,11 @@ export function getRoomFileDownloadUrl(
   const base = apiUrl(`/api/rooms/${port}/files/${fileId}`);
   return inline ? `${base}?inline=1` : base;
 }
+
+export async function removeRoomParticipant(
+  port: number,
+  byUserId: string,
+  targetUserId: string
+): Promise<void> {
+  await axios.post(apiUrl(`/api/rooms/${port}/remove`), { byUserId, targetUserId });
+}

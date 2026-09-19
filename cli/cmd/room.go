@@ -226,6 +226,30 @@ var roomSyncCmd = &cobra.Command{
 	},
 }
 
+var roomRemoveCmd = &cobra.Command{
+	Use:     "remove <room-id> <target-user-id>",
+	Aliases: []string{"kick"},
+	Short:   "Remove/kick a participant from a room",
+	Args:    cobra.ExactArgs(2),
+	Example: `  transfera room remove 52341 usr_abc123 --user usr_host`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		port, err := strconv.Atoi(args[0])
+		if err != nil || port < 1 || port > 65535 {
+			return fmt.Errorf("invalid room ID: %s (must be a port between 1 and 65535)", args[0])
+		}
+		targetUserId := args[1]
+
+		client := api.NewClient(apiBaseURL, verbose)
+		if err := client.RemoveRoomParticipant(port, roomUserId, targetUserId); err != nil {
+			return err
+		}
+
+		fmt.Println()
+		fmt.Printf("  ✓ Participant %s was removed from room %d\n\n", targetUserId, port)
+		return nil
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(roomCmd)
 
@@ -235,6 +259,7 @@ func init() {
 	roomCmd.AddCommand(roomUploadCmd)
 	roomCmd.AddCommand(roomDownloadCmd)
 	roomCmd.AddCommand(roomSyncCmd)
+	roomCmd.AddCommand(roomRemoveCmd)
 
 	// Flags
 	roomCreateCmd.Flags().StringVar(&roomCreatorName, "name", "Host", "Your display name as room creator")
@@ -249,4 +274,5 @@ func init() {
 	roomDownloadCmd.Flags().StringVarP(&roomOutDir, "output", "o", "", "Directory to save downloaded file (default: current directory)")
 
 	roomSyncCmd.Flags().StringVar(&roomUserId, "user", "", "Your user ID (optional)")
+	roomRemoveCmd.Flags().StringVar(&roomUserId, "user", "", "Your user ID (optional)")
 }

@@ -13,11 +13,13 @@ import {
   FiX,
   FiPlusCircle,
   FiLogIn,
+  FiUserMinus,
 } from 'react-icons/fi';
 import {
   createRoom,
   joinRoom,
   leaveRoom,
+  removeRoomParticipant,
   syncRoom,
   sendRoomMessage,
   uploadRoomFiles,
@@ -79,6 +81,7 @@ export default function RoomView() {
   const [isSending, setIsSending] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showMemberList, setShowMemberList] = useState(false);
+  const [removingUserId, setRemovingUserId] = useState<string | null>(null);
 
   // Drag & drop state inside room
   const [isDraggingOverChat, setIsDraggingOverChat] = useState(false);
@@ -154,7 +157,27 @@ export default function RoomView() {
       try {
         const data = await syncRoom(roomId, userId);
         if (cancelled) return;
-        setParticipants(data.participants || []);
+
+        const currentParticipants = data.participants || [];
+        const stillInRoom = currentParticipants.some((p) => p.id === userId);
+        if (!stillInRoom) {
+          try {
+            localStorage.removeItem(ROOM_STORAGE_KEY);
+          } catch {}
+          setInRoom(false);
+          setRoomId(null);
+          setUserId('');
+          setMessages([]);
+          setParticipants([]);
+          setSelectedFiles([]);
+          setInputText('');
+          prevMessagesCountRef.current = 0;
+          isUserScrolledUpRef.current = false;
+          setLobbyError('You were removed from the room.');
+          return;
+        }
+
+        setParticipants(currentParticipants);
         setMaxCapacity(data.maxParticipants || 5);
         setFiles(data.files || []);
 
@@ -330,6 +353,24 @@ export default function RoomView() {
     setInputText('');
     prevMessagesCountRef.current = 0;
     isUserScrolledUpRef.current = false;
+  };
+
+  // Remove Participant Handler
+  const handleRemoveParticipant = async (targetUserId: string, targetName: string) => {
+    if (!roomId || !userId) return;
+    if (!confirm(`Are you sure you want to remove ${targetName} from the room?`)) {
+      return;
+    }
+    setRemovingUserId(targetUserId);
+    try {
+      await removeRoomParticipant(roomId, userId, targetUserId);
+      setParticipants((prev) => prev.filter((p) => p.id !== targetUserId));
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      alert(msg || `Failed to remove ${targetName}`);
+    } finally {
+      setRemovingUserId(null);
+    }
   };
 
   // Copy Room ID to clipboard
@@ -641,7 +682,7 @@ export default function RoomView() {
 
             {/* Members popover */}
             {showMemberList && (
-              <div className="absolute right-0 mt-2 w-56 bg-white border rounded-xl shadow-xl p-3 z-30 space-y-2">
+              <div className="absolute right-0 mt-2 w-64 bg-white border rounded-xl shadow-xl p-3 z-30 space-y-2">
                 <div className="flex justify-between items-center pb-1 border-b">
                   <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                     Room Members
@@ -655,14 +696,27 @@ export default function RoomView() {
                 </div>
                 <ul className="space-y-1.5 max-h-48 overflow-y-auto">
                   {participants.map((p) => (
-                    <li key={p.id} className="flex items-center justify-between text-xs text-gray-700">
-                      <span className="truncate">
-                        {p.name} {p.id === userId && <span className="text-blue-600 font-semibold">(You)</span>}
-                      </span>
-                      {p.isCreator && (
-                        <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.2 rounded font-medium">
-                          Host
+                    <li key={p.id} className="flex items-center justify-between text-xs text-gray-700 py-0.5">
+                      <div className="flex items-center gap-1.5 truncate mr-2 min-w-0">
+                        <span className="truncate">
+                          {p.name} {p.id === userId && <span className="text-blue-600 font-semibold">(You)</span>}
                         </span>
+                        {p.isCreator && (
+                          <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.2 rounded font-medium shrink-0">
+                            Host
+                          </span>
+                        )}
+                      </div>
+                      {p.id !== userId && (
+                        <button
+                          onClick={() => handleRemoveParticipant(p.id, p.name)}
+                          disabled={removingUserId === p.id}
+                          title={`Remove ${p.name} from room`}
+                          className="flex items-center gap-1 text-[11px] text-red-500 hover:text-red-700 hover:bg-red-50 px-1.5 py-0.5 rounded transition-colors shrink-0 disabled:opacity-50"
+                        >
+                          <FiUserMinus className="w-3 h-3" />
+                          <span>Remove</span>
+                        </button>
                       )}
                     </li>
                   ))}

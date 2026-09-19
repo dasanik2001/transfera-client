@@ -309,6 +309,67 @@ namespace server::service
         return true;
     }
 
+    bool RoomManager::removeParticipant(int port, const std::string &byUserId,
+                                        const std::string &targetUserId, std::string &outError)
+    {
+        std::lock_guard<std::mutex> lock(roomsMutex_);
+
+        auto it = rooms_.find(port);
+        if (it == rooms_.end())
+        {
+            outError = "Room not found";
+            return false;
+        }
+
+        Room &room = it->second;
+
+        // Find remover name (if available)
+        std::string removerName = "Someone";
+        if (!byUserId.empty())
+        {
+            auto byIt = std::find_if(room.participants.begin(), room.participants.end(),
+                                     [&](const RoomParticipant &p) { return p.id == byUserId; });
+            if (byIt != room.participants.end())
+            {
+                removerName = byIt->name;
+            }
+        }
+
+        // Find target participant
+        auto targetIt = std::find_if(room.participants.begin(), room.participants.end(),
+                                     [&](const RoomParticipant &p) { return p.id == targetUserId; });
+        if (targetIt == room.participants.end())
+        {
+            outError = "Participant not found in room";
+            return false;
+        }
+
+        std::string targetName = targetIt->name;
+        room.participants.erase(targetIt);
+
+        RoomMessage removeMsg;
+        removeMsg.id = generateId("msg_");
+        removeMsg.type = "system";
+        removeMsg.senderId = "system";
+        removeMsg.senderName = "System";
+        removeMsg.text = targetName + " was removed from the room by " + removerName;
+        removeMsg.timestampMs = currentTimestampMs();
+        room.messages.push_back(removeMsg);
+        room.lastActivity = std::chrono::steady_clock::now();
+
+        if (room.participants.empty())
+        {
+            for (auto &[fileId, file] : room.files)
+            {
+                std::error_code ec;
+                std::filesystem::remove(file.diskPath, ec);
+            }
+            rooms_.erase(it);
+        }
+
+        return true;
+    }
+
     bool RoomManager::addMessage(int port, const std::string &userId, const std::string &text,
                                  RoomMessage &outMessage, std::string &outError)
     {

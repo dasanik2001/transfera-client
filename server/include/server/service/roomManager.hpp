@@ -79,6 +79,9 @@ namespace server::service
 
         bool leaveRoom(int port, const std::string &userId, std::string &outError);
 
+        bool removeParticipant(int port, const std::string &byUserId,
+                               const std::string &targetUserId, std::string &outError);
+
         bool addMessage(int port, const std::string &userId, const std::string &text,
                         RoomMessage &outMessage, std::string &outError);
 
