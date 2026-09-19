@@ -82,6 +82,8 @@ var rootCmd = &cobra.Command{
   Usage:
     transfera upload <file>           Upload a file and get an invite code
     transfera download <invite-code>  Download a file using an invite code
+    transfera room create             Create a collaborative multi-user room
+    transfera room join <room-id>     Join an existing room
     transfera health                  Check if the API server is reachable
 
   Official server: https://transfera-api.onrender.com (override with --api or TRANSFERA_API_URL)`,

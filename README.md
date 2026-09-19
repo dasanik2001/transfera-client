@@ -87,7 +87,15 @@ go build -o transfera .       # Linux/macOS
 ./transfera health
 ```
 
-See **[CLI_go/README.md](CLI_go/README.md)** for full documentation.
+**Collaborative Rooms** (Create or Join multi-user room for group file sharing and chat):
+```bash
+./transfera room create --name Alice -i   # Create & enter live room
+./transfera room join 52341 --name Bob -i  # Join & enter live room
+```
+
+Or run `./transfera` with no arguments for the interactive terminal menu!
+
+See **[cli/README.md](cli/README.md)** for full documentation.
 
 ## Deploy on Linode (optional self-host)
 

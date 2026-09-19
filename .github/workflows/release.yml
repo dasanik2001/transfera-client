@@ -1,0 +1,53 @@
+name: Release CLI Binaries
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache-dependency-path: cli/go.sum
+
+      - name: Download dependencies
+        working-directory: cli
+        run: go mod tidy
+
+      - name: Build binaries
+        working-directory: cli
+        run: |
+          VERSION=${GITHUB_REF_NAME}
+
+          # Windows (amd64)
+          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -X github.com/dasanik2001/transfera-client/cli/cmd.Version=${VERSION#v}" -o ../dist/transfera-windows-amd64.exe .
+
+          # macOS (Intel)
+          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w -X github.com/dasanik2001/transfera-client/cli/cmd.Version=${VERSION#v}" -o ../dist/transfera-darwin-amd64 .
+
+          # macOS (Apple Silicon)
+          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w -X github.com/dasanik2001/transfera-client/cli/cmd.Version=${VERSION#v}" -o ../dist/transfera-darwin-arm64 .
+
+          # Linux (amd64)
+          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X github.com/dasanik2001/transfera-client/cli/cmd.Version=${VERSION#v}" -o ../dist/transfera-linux-amd64 .
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/transfera-windows-amd64.exe
+            dist/transfera-darwin-amd64
+            dist/transfera-darwin-arm64
+            dist/transfera-linux-amd64

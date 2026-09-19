@@ -14,11 +14,13 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/dasanik2001/transfera-client/cli/internal/api"
+	"github.com/dasanik2001/transfera-client/cli/internal/tui"
 	"github.com/dasanik2001/transfera-client/cli/internal/validation"
 )
 
@@ -30,6 +32,7 @@ var (
 	roomUserId      string
 	roomNote        string
 	roomOutDir      string
+	roomInteractive bool
 )
 
 var roomCmd = &cobra.Command{
@@ -44,12 +47,18 @@ var roomCreateCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create a new collaborative room",
 	Example: `  transfera room create --name Alice --max 5
-  transfera room create --name "Dev Team" --max 10 --port 54321`,
+  transfera room create --name "Dev Team" --max 10 --port 54321
+  transfera room create --name Alice -i   (enter live interactive session)`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client := api.NewClient(apiBaseURL, verbose)
 		resp, err := client.CreateRoom(roomCreatorName, roomCapacity, roomCustomPort)
 		if err != nil {
 			return err
+		}
+
+		if roomInteractive {
+			tui.RunRoomSession(client, resp.RoomID, resp.UserID, roomCreatorName, true, resp.MaxParticipants)
+			return nil
 		}
 
 		fmt.Println()
@@ -61,6 +70,8 @@ var roomCreateCmd = &cobra.Command{
 		fmt.Println()
 		fmt.Printf("  Share the Room ID %d with others so they can join via:\n", resp.RoomID)
 		fmt.Printf("    transfera room join %d --name <YourName>\n\n", resp.RoomID)
+		fmt.Println("  To enter the interactive live room session:")
+		fmt.Printf("    transfera room session %d --user %s --name \"%s\"\n\n", resp.RoomID, resp.UserID, roomCreatorName)
 		return nil
 	},
 }
@@ -69,7 +80,8 @@ var roomJoinCmd = &cobra.Command{
 	Use:   "join <room-id>",
 	Short: "Join an existing collaboration room",
 	Args:  cobra.ExactArgs(1),
-	Example: `  transfera room join 52341 --name Bob`,
+	Example: `  transfera room join 52341 --name Bob
+  transfera room join 52341 --name Bob -i   (enter live interactive session)`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		port, err := strconv.Atoi(args[0])
 		if err != nil || port < 1 || port > 65535 {
@@ -82,12 +94,19 @@ var roomJoinCmd = &cobra.Command{
 			return err
 		}
 
+		if roomInteractive {
+			tui.RunRoomSession(client, resp.RoomID, resp.UserID, roomUserName, false, resp.MaxParticipants)
+			return nil
+		}
+
 		fmt.Println()
 		fmt.Println("  ✓ Joined room successfully!")
 		fmt.Printf("    Room ID      : %d\n", resp.RoomID)
 		fmt.Printf("    Display Name : %s\n", roomUserName)
 		fmt.Printf("    User ID      : %s\n", resp.UserID)
 		fmt.Printf("    Max Capacity : %d participants\n\n", resp.MaxParticipants)
+		fmt.Println("  To enter the interactive live room session:")
+		fmt.Printf("    transfera room session %d --user %s --name \"%s\"\n\n", resp.RoomID, resp.UserID, roomUserName)
 		return nil
 	},
 }
@@ -250,23 +269,124 @@ var roomRemoveCmd = &cobra.Command{
 	},
 }
 
+var roomSessionCmd = &cobra.Command{
+	Use:   "session <room-id>",
+	Short: "Enter interactive collaboration session for a room",
+	Args:  cobra.ExactArgs(1),
+	Example: `  transfera room session 52341 --user usr_abc123 --name Alice`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		port, err := strconv.Atoi(args[0])
+		if err != nil || port < 1 || port > 65535 {
+			return fmt.Errorf("invalid room ID: %s (must be a port between 1 and 65535)", args[0])
+		}
+		if roomUserId == "" {
+			return fmt.Errorf("--user <userId> is required to connect to room session")
+		}
+
+		displayName := roomUserName
+		if displayName == "" {
+			displayName = "Member"
+		}
+
+		client := api.NewClient(apiBaseURL, verbose)
+		sync, err := client.SyncRoom(port, roomUserId, 0)
+		if err != nil {
+			return fmt.Errorf("failed to connect to room %d: %w", port, err)
+		}
+
+		isCreator := false
+		for _, p := range sync.Participants {
+			if p.ID == roomUserId {
+				isCreator = p.IsCreator
+				if roomUserName == "" || roomUserName == "Member" {
+					displayName = p.Name
+				}
+				break
+			}
+		}
+
+		tui.RunRoomSession(client, port, roomUserId, displayName, isCreator, sync.MaxParticipants)
+		return nil
+	},
+}
+
+var roomMessageCmd = &cobra.Command{
+	Use:     "message <room-id> <text...>",
+	Aliases: []string{"msg"},
+	Short:   "Send a text message to a room",
+	Args:    cobra.MinimumNArgs(2),
+	Example: `  transfera room message 52341 Hello team! --user usr_abc123`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		port, err := strconv.Atoi(args[0])
+		if err != nil || port < 1 || port > 65535 {
+			return fmt.Errorf("invalid room ID: %s", args[0])
+		}
+		if roomUserId == "" {
+			return fmt.Errorf("--user <userId> is required to send messages")
+		}
+
+		text := strings.Join(args[1:], " ")
+		client := api.NewClient(apiBaseURL, verbose)
+		if err := client.SendRoomMessage(port, roomUserId, text); err != nil {
+			return err
+		}
+
+		fmt.Println("  ✓ Message sent successfully!")
+		return nil
+	},
+}
+
+var roomLeaveCmd = &cobra.Command{
+	Use:   "leave <room-id>",
+	Short: "Leave a collaborative room",
+	Args:  cobra.ExactArgs(1),
+	Example: `  transfera room leave 52341 --user usr_abc123`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		port, err := strconv.Atoi(args[0])
+		if err != nil || port < 1 || port > 65535 {
+			return fmt.Errorf("invalid room ID: %s", args[0])
+		}
+		if roomUserId == "" {
+			return fmt.Errorf("--user <userId> is required to leave a room")
+		}
+
+		client := api.NewClient(apiBaseURL, verbose)
+		if err := client.LeaveRoom(port, roomUserId); err != nil {
+			return err
+		}
+
+		fmt.Printf("\n  ✓ Left room %d successfully!\n\n", port)
+		return nil
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(roomCmd)
 
 	// Subcommands
 	roomCmd.AddCommand(roomCreateCmd)
 	roomCmd.AddCommand(roomJoinCmd)
+	roomCmd.AddCommand(roomSessionCmd)
+	roomCmd.AddCommand(roomMessageCmd)
 	roomCmd.AddCommand(roomUploadCmd)
 	roomCmd.AddCommand(roomDownloadCmd)
 	roomCmd.AddCommand(roomSyncCmd)
 	roomCmd.AddCommand(roomRemoveCmd)
+	roomCmd.AddCommand(roomLeaveCmd)
 
 	// Flags
 	roomCreateCmd.Flags().StringVar(&roomCreatorName, "name", "Host", "Your display name as room creator")
 	roomCreateCmd.Flags().IntVar(&roomCapacity, "max", 5, "Maximum participants allowed in the room (2-100)")
 	roomCreateCmd.Flags().IntVar(&roomCustomPort, "port", 0, "Custom room ID / port (default auto-assigns 49152-65535)")
+	roomCreateCmd.Flags().BoolVarP(&roomInteractive, "interactive", "i", false, "Enter interactive collaboration session immediately")
 
 	roomJoinCmd.Flags().StringVar(&roomUserName, "name", "Guest", "Your display name")
+	roomJoinCmd.Flags().BoolVarP(&roomInteractive, "interactive", "i", false, "Enter interactive collaboration session immediately")
+
+	roomSessionCmd.Flags().StringVar(&roomUserId, "user", "", "Your user ID in the room (required)")
+	roomSessionCmd.Flags().StringVar(&roomUserName, "name", "", "Your display name (optional)")
+
+	roomMessageCmd.Flags().StringVar(&roomUserId, "user", "", "Your user ID (required)")
 
 	roomUploadCmd.Flags().StringVar(&roomUserId, "user", "", "Your user ID (optional)")
 	roomUploadCmd.Flags().StringVar(&roomNote, "note", "", "Optional message/note accompanying the files")
@@ -275,4 +395,5 @@ func init() {
 
 	roomSyncCmd.Flags().StringVar(&roomUserId, "user", "", "Your user ID (optional)")
 	roomRemoveCmd.Flags().StringVar(&roomUserId, "user", "", "Your user ID (optional)")
+	roomLeaveCmd.Flags().StringVar(&roomUserId, "user", "", "Your user ID (required)")
 }
