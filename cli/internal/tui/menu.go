@@ -327,12 +327,12 @@ func handleCreateRoom(reader *bufio.Reader, apiURL string, verbose bool) {
 	}
 
 	fmt.Printf("\n  %s✓ Room created successfully!%s\n", colorGreen, colorReset)
-	fmt.Printf("  %s┌──────────────────────────────────────────────┐%s\n", colorCyan, colorReset)
-	fmt.Printf("  %s│%s  Room ID (Port) : %s%s%-28d%s%s│%s\n", colorCyan, colorReset, colorBold, colorGreen, resp.RoomID, colorReset, colorCyan, colorReset)
-	fmt.Printf("  %s│%s  Host           : %-28s%s│%s\n", colorCyan, colorReset, name, colorCyan, colorReset)
-	fmt.Printf("  %s│%s  User ID        : %-28s%s│%s\n", colorCyan, colorReset, resp.UserID, colorCyan, colorReset)
-	fmt.Printf("  %s│%s  Max Capacity   : %-28s%s│%s\n", colorCyan, colorReset, fmt.Sprintf("%d participants", resp.MaxParticipants), colorCyan, colorReset)
-	fmt.Printf("  %s└──────────────────────────────────────────────┘%s\n", colorCyan, colorReset)
+	fmt.Printf("  %s┌──────────────────────────────────────────────%s\n", colorCyan, colorReset)
+	fmt.Printf("  %s│%s  Room ID (Port) : %s%s%d%s\n", colorCyan, colorReset, colorBold, colorGreen, resp.RoomID, colorReset)
+	fmt.Printf("  %s│%s  Host           : %s\n", colorCyan, colorReset, name)
+	fmt.Printf("  %s│%s  User ID        : %s%s%s\n", colorCyan, colorReset, colorDim, resp.UserID, colorReset)
+	fmt.Printf("  %s│%s  Max Capacity   : %d participants\n", colorCyan, colorReset, resp.MaxParticipants)
+	fmt.Printf("  %s└──────────────────────────────────────────────%s\n", colorCyan, colorReset)
 
 	enter := prompt(reader, fmt.Sprintf("\n  %sEnter interactive room session now? (Y/n):%s ", colorWhite, colorReset))
 	if strings.ToLower(strings.TrimSpace(enter)) != "n" {

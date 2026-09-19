@@ -192,24 +192,29 @@ func RunRoomSession(client *api.Client, roomID int, userID string, userName stri
 
 func printRoomHeader(roomID int, userName string, userID string, isCreator bool, maxCapacity int) {
 	role := "Participant"
+	roleColor := colorCyan
 	if isCreator {
 		role = "Host 👑"
+		roleColor = colorYellow
 	}
 
-	fmt.Printf("\n  %s%s╔══════════════════════════════════════════════════════════════════════╗%s\n", colorCyan, colorBold, colorReset)
-	fmt.Printf("  %s%s║%s                      TRANSFERA COLLABORATION ROOM                    %s%s║%s\n", colorCyan, colorBold, colorReset, colorCyan, colorBold, colorReset)
-	fmt.Printf("  %s%s╠══════════════════════════════════════════════════════════════════════╣%s\n", colorCyan, colorBold, colorReset)
-	fmt.Printf("  %s%s║%s  Room ID (Port) : %s%-51d%s%s║%s\n", colorCyan, colorBold, colorReset, colorBold, roomID, colorReset, colorCyan, colorBold, colorReset)
-	fmt.Printf("  %s%s║%s  Your Name      : %-51s%s%s║%s\n", colorCyan, colorBold, colorReset, userName, colorCyan, colorBold, colorReset)
-	fmt.Printf("  %s%s║%s  Your Role      : %-51s%s%s║%s\n", colorCyan, colorBold, colorReset, role, colorCyan, colorBold, colorReset)
-	fmt.Printf("  %s%s║%s  Your User ID   : %s%-51s%s%s║%s\n", colorCyan, colorBold, colorReset, colorDim, userID, colorReset, colorCyan, colorBold, colorReset)
-	fmt.Printf("  %s%s║%s  Max Capacity   : %-51s%s%s║%s\n", colorCyan, colorBold, colorReset, fmt.Sprintf("%d participants", maxCapacity), colorCyan, colorBold, colorReset)
-	fmt.Printf("  %s%s╠══════════════════════════════════════════════════════════════════════╣%s\n", colorCyan, colorBold, colorReset)
-	fmt.Printf("  %s%s║%s  💬 Type a message and press Enter to chat.                            %s%s║%s\n", colorCyan, colorBold, colorReset, colorCyan, colorBold, colorReset)
-	fmt.Printf("  %s%s║%s  📁 Type %s/upload <file>%s to share files.                                 %s%s║%s\n", colorCyan, colorBold, colorReset, colorBold, colorReset, colorCyan, colorBold, colorReset)
-	fmt.Printf("  %s%s║%s  ❓ Type %s/help%s for all in-room commands.                                %s%s║%s\n", colorCyan, colorBold, colorReset, colorBold, colorReset, colorCyan, colorBold, colorReset)
-	fmt.Printf("  %s%s║%s  🚪 Type %s/leave%s to exit this room.                                      %s%s║%s\n", colorCyan, colorBold, colorReset, colorBold, colorReset, colorCyan, colorBold, colorReset)
-	fmt.Printf("  %s%s╚══════════════════════════════════════════════════════════════════════╝%s\n\n", colorCyan, colorBold, colorReset)
+	divider := strings.Repeat("─", 68)
+
+	fmt.Println()
+	fmt.Printf("  %s%s%s%s\n", colorCyan, colorBold, divider, colorReset)
+	fmt.Printf("  %s%s  TRANSFERA COLLABORATION ROOM%s\n", colorCyan, colorBold, colorReset)
+	fmt.Printf("  %s%s%s%s\n", colorCyan, colorBold, divider, colorReset)
+	fmt.Printf("    %s●%s Room ID (Port) : %s%s%d%s\n", colorCyan, colorReset, colorBold, colorGreen, roomID, colorReset)
+	fmt.Printf("    %s●%s Your Name      : %s%s%s\n", colorCyan, colorReset, colorBold, userName, colorReset)
+	fmt.Printf("    %s●%s Your Role      : %s%s%s\n", colorCyan, colorReset, roleColor, role, colorReset)
+	fmt.Printf("    %s●%s Your User ID   : %s%s%s\n", colorCyan, colorReset, colorDim, userID, colorReset)
+	fmt.Printf("    %s●%s Max Capacity   : %d participants\n", colorCyan, colorReset, maxCapacity)
+	fmt.Printf("  %s%s%s%s\n", colorCyan, colorDim, divider, colorReset)
+	fmt.Printf("    💬 Type a message and press Enter to chat\n")
+	fmt.Printf("    📁 %s/upload <file>%s     Share files in the room\n", colorBold, colorReset)
+	fmt.Printf("    ❓ %s/help%s              Show all in-room commands\n", colorBold, colorReset)
+	fmt.Printf("    🚪 %s/leave%s             Exit this room\n", colorBold, colorReset)
+	fmt.Printf("  %s%s%s%s\n\n", colorCyan, colorBold, divider, colorReset)
 }
 
 func printRoomHelp(isCreator bool) {
