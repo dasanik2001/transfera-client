@@ -46,6 +46,9 @@ function isImageFile(fileName?: string): boolean {
   return /\.(png|jpe?g|gif|webp|svg)$/i.test(fileName);
 }
 
+const ROOM_STORAGE_KEY = 'transfera_room_session';
+const NAME_STORAGE_KEY = 'transfera_user_name';
+
 export default function RoomView() {
   // Lobby state
   const [inRoom, setInRoom] = useState(false);
@@ -80,18 +83,66 @@ export default function RoomView() {
   // Drag & drop state inside room
   const [isDraggingOverChat, setIsDraggingOverChat] = useState(false);
 
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isUserScrolledUpRef = useRef<boolean>(false);
+  const prevMessagesCountRef = useRef<number>(0);
+
+  // Restore session from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedName = localStorage.getItem(NAME_STORAGE_KEY);
+      if (savedName) {
+        setCreateName(savedName);
+        setJoinName(savedName);
+      }
+
+      const savedRaw = localStorage.getItem(ROOM_STORAGE_KEY);
+      if (savedRaw) {
+        const saved = JSON.parse(savedRaw);
+        if (saved?.roomId && saved?.userId) {
+          setRoomId(saved.roomId);
+          setUserId(saved.userId);
+          setMaxCapacity(saved.maxCapacity || 5);
+          setInRoom(true);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to restore room session:', e);
+    }
+  }, []);
 
   // Scroll chat to bottom
-  const scrollToBottom = useCallback(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = useCallback((smooth = true) => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
+    }
+  }, []);
+
+  // Detect when the user scrolls up in the chat
+  const handleChatScroll = useCallback(() => {
+    const el = chatContainerRef.current;
+    if (!el) return;
+    const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    // If more than 80px from the bottom, user has deliberately scrolled up
+    isUserScrolledUpRef.current = distanceToBottom > 80;
   }, []);
 
   useEffect(() => {
-    if (inRoom) {
-      scrollToBottom();
+    if (!inRoom) return;
+
+    const count = messages.length;
+    const isFirstLoad = prevMessagesCountRef.current === 0 && count > 0;
+    const hasNewMessages = count > prevMessagesCountRef.current;
+
+    if (isFirstLoad) {
+      scrollToBottom(false);
+    } else if (hasNewMessages && !isUserScrolledUpRef.current) {
+      scrollToBottom(true);
     }
+
+    prevMessagesCountRef.current = count;
   }, [messages, inRoom, scrollToBottom]);
 
   // Sync polling loop when in a room
@@ -105,10 +156,29 @@ export default function RoomView() {
         if (cancelled) return;
         setParticipants(data.participants || []);
         setMaxCapacity(data.maxParticipants || 5);
-        setMessages(data.messages || []);
         setFiles(data.files || []);
-      } catch (err) {
+
+        setMessages((prev) => {
+          const next = data.messages || [];
+          if (prev.length === next.length) {
+            const lastPrev = prev[prev.length - 1];
+            const lastNext = next[next.length - 1];
+            if (lastPrev?.id === lastNext?.id) {
+              return prev; // Identical messages: keep reference to prevent re-render
+            }
+          }
+          return next;
+        });
+      } catch (err: unknown) {
         console.error('Room sync failed:', err);
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        if (status === 404) {
+          try {
+            localStorage.removeItem(ROOM_STORAGE_KEY);
+          } catch {}
+          setInRoom(false);
+          setLobbyError('Room was closed or expired.');
+        }
       }
     };
 
@@ -136,17 +206,31 @@ export default function RoomView() {
       }
 
       const res = await createRoom(createName, createCapacity, portNum);
+      const name = createName.trim() || 'Host';
       setRoomId(res.roomId);
       setUserId(res.userId);
       setMaxCapacity(res.maxParticipants);
       const hostParticipant: RoomParticipant = {
         id: res.userId,
-        name: createName.trim() || 'Host',
+        name: name,
         isCreator: true,
         joinedAt: Date.now(),
       };
       setParticipants([hostParticipant]);
       setInRoom(true);
+
+      try {
+        localStorage.setItem(NAME_STORAGE_KEY, name);
+        localStorage.setItem(
+          ROOM_STORAGE_KEY,
+          JSON.stringify({
+            roomId: res.roomId,
+            userId: res.userId,
+            userName: name,
+            maxCapacity: res.maxParticipants,
+          })
+        );
+      } catch {}
 
       try {
         const syncData = await syncRoom(res.roomId, res.userId);
@@ -181,17 +265,31 @@ export default function RoomView() {
 
     try {
       const res = await joinRoom(portNum, joinName);
+      const name = joinName.trim() || 'Guest';
       setRoomId(res.roomId);
       setUserId(res.userId);
       setMaxCapacity(res.maxParticipants);
       const guestParticipant: RoomParticipant = {
         id: res.userId,
-        name: joinName.trim() || 'Guest',
+        name: name,
         isCreator: false,
         joinedAt: Date.now(),
       };
       setParticipants([guestParticipant]);
       setInRoom(true);
+
+      try {
+        localStorage.setItem(NAME_STORAGE_KEY, name);
+        localStorage.setItem(
+          ROOM_STORAGE_KEY,
+          JSON.stringify({
+            roomId: res.roomId,
+            userId: res.userId,
+            userName: name,
+            maxCapacity: res.maxParticipants,
+          })
+        );
+      } catch {}
 
       try {
         const syncData = await syncRoom(res.roomId, res.userId);
@@ -220,6 +318,9 @@ export default function RoomView() {
         console.error('Leave room error:', err);
       }
     }
+    try {
+      localStorage.removeItem(ROOM_STORAGE_KEY);
+    } catch {}
     setInRoom(false);
     setRoomId(null);
     setUserId('');
@@ -227,6 +328,8 @@ export default function RoomView() {
     setParticipants([]);
     setSelectedFiles([]);
     setInputText('');
+    prevMessagesCountRef.current = 0;
+    isUserScrolledUpRef.current = false;
   };
 
   // Copy Room ID to clipboard
@@ -296,6 +399,8 @@ export default function RoomView() {
       setMessages(updated.messages || []);
       setFiles(updated.files || []);
       setParticipants(updated.participants || []);
+      isUserScrolledUpRef.current = false;
+      scrollToBottom(true);
     } catch (err: unknown) {
       console.error('Send message failed:', err);
       const msg =
@@ -578,7 +683,11 @@ export default function RoomView() {
       </header>
 
       {/* Messages Feed */}
-      <div className="flex-1 p-4 overflow-y-auto space-y-3">
+      <div
+        ref={chatContainerRef}
+        onScroll={handleChatScroll}
+        className="flex-1 p-4 overflow-y-auto space-y-3"
+      >
         {messages.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-gray-400 text-sm space-y-2">
             <FiUsers className="w-8 h-8 text-gray-300" />

@@ -32,6 +32,30 @@ export default function Home() {
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
 
   useEffect(() => {
+    try {
+      const savedTab = localStorage.getItem('transfera_active_tab') as
+        | 'upload'
+        | 'download'
+        | 'rooms'
+        | null;
+      if (savedTab === 'upload' || savedTab === 'download' || savedTab === 'rooms') {
+        setActiveTab(savedTab);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleTabChange = (tab: 'upload' | 'download' | 'rooms') => {
+    setActiveTab(tab);
+    try {
+      localStorage.setItem('transfera_active_tab', tab);
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
     let cancelled = false;
     const check = async () => {
       try {
@@ -157,7 +181,7 @@ export default function Home() {
                 ? 'text-blue-600 border-b-2 border-blue-600'
                 : 'text-gray-500 hover:text-gray-700'
                 }`}
-              onClick={() => setActiveTab('upload')}
+              onClick={() => handleTabChange('upload')}
             >
               Share a File
             </button>
@@ -166,7 +190,7 @@ export default function Home() {
                 ? 'text-blue-600 border-b-2 border-blue-600'
                 : 'text-gray-500 hover:text-gray-700'
                 }`}
-              onClick={() => setActiveTab('download')}
+              onClick={() => handleTabChange('download')}
             >
               Receive a File
             </button>
@@ -175,7 +199,7 @@ export default function Home() {
                 ? 'text-blue-600 border-b-2 border-blue-600'
                 : 'text-gray-500 hover:text-gray-700'
                 }`}
-              onClick={() => setActiveTab('rooms')}
+              onClick={() => handleTabChange('rooms')}
             >
               <span>Rooms</span>
               <span className="text-[10px] uppercase font-bold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
