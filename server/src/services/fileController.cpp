@@ -329,7 +329,7 @@ namespace server::services
         setHeaderOnce(res, "Access-Control-Allow-Origin", "*");
         setHeaderOnce(res, "Access-Control-Allow-Methods", "GET, POST, OPTIONS");
         setHeaderOnce(res, "Access-Control-Allow-Headers",
-                      "Content-Type, Authorization, Accept, X-Requested-With, Range");
+                      "Content-Type, Authorization, Accept, X-Requested-With, Range, X-User-Id, *");
         setHeaderOnce(res, "Access-Control-Max-Age", "86400");
         setHeaderOnce(res, "Access-Control-Expose-Headers",
                       "Content-Disposition, X-Filename, X-Downloads-Remaining, Content-Type, "

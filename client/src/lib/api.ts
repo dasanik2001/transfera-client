@@ -96,11 +96,7 @@ export async function joinRoom(
 }
 
 export async function leaveRoom(port: number, userId: string): Promise<void> {
-  await axios.post(
-    apiUrl(`/api/rooms/${port}/leave`),
-    { userId },
-    { headers: { 'X-User-Id': userId } }
-  );
+  await axios.post(apiUrl(`/api/rooms/${port}/leave`), { userId });
 }
 
 export async function syncRoom(
@@ -109,8 +105,7 @@ export async function syncRoom(
   since: number = 0
 ): Promise<RoomSyncResponse> {
   const res = await axios.get<RoomSyncResponse>(apiUrl(`/api/rooms/${port}/sync`), {
-    params: { since },
-    headers: { 'X-User-Id': userId },
+    params: { since, userId },
     timeout: 5000,
   });
   return res.data;
@@ -121,11 +116,7 @@ export async function sendRoomMessage(
   userId: string,
   text: string
 ): Promise<void> {
-  await axios.post(
-    apiUrl(`/api/rooms/${port}/messages`),
-    { text },
-    { headers: { 'X-User-Id': userId } }
-  );
+  await axios.post(apiUrl(`/api/rooms/${port}/messages`), { text, userId });
 }
 
 export async function uploadRoomFiles(
@@ -141,11 +132,7 @@ export async function uploadRoomFiles(
     formData.append('files', file);
   });
 
-  await axios.post(apiUrl(`/api/rooms/${port}/upload`), formData, {
-    headers: {
-      'X-User-Id': userId,
-    },
-  });
+  await axios.post(apiUrl(`/api/rooms/${port}/upload`), formData);
 }
 
 export function getRoomFileDownloadUrl(

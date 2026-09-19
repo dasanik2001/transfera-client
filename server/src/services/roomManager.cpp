@@ -102,7 +102,7 @@ namespace server::service
     void RoomManager::pruneInactiveParticipants(Room &room)
     {
         const auto now = std::chrono::steady_clock::now();
-        constexpr auto kInactivityTimeout = std::chrono::seconds(45);
+        constexpr auto kInactivityTimeout = std::chrono::seconds(180);
 
         auto it = room.participants.begin();
         while (it != room.participants.end())
@@ -435,7 +435,6 @@ namespace server::service
         }
 
         Room &room = it->second;
-        pruneInactiveParticipants(room);
 
         if (!userId.empty())
         {
@@ -448,6 +447,8 @@ namespace server::service
                 }
             }
         }
+
+        pruneInactiveParticipants(room);
 
         // Build JSON response
         std::string json = "{";

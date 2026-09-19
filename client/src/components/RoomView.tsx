@@ -139,7 +139,25 @@ export default function RoomView() {
       setRoomId(res.roomId);
       setUserId(res.userId);
       setMaxCapacity(res.maxParticipants);
+      const hostParticipant: RoomParticipant = {
+        id: res.userId,
+        name: createName.trim() || 'Host',
+        isCreator: true,
+        joinedAt: Date.now(),
+      };
+      setParticipants([hostParticipant]);
       setInRoom(true);
+
+      try {
+        const syncData = await syncRoom(res.roomId, res.userId);
+        if (syncData.participants && syncData.participants.length > 0) {
+          setParticipants(syncData.participants);
+        }
+        setMessages(syncData.messages || []);
+        setFiles(syncData.files || []);
+      } catch (e) {
+        console.error('Initial room sync error:', e);
+      }
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to create room';
       setLobbyError(msg);
@@ -166,7 +184,25 @@ export default function RoomView() {
       setRoomId(res.roomId);
       setUserId(res.userId);
       setMaxCapacity(res.maxParticipants);
+      const guestParticipant: RoomParticipant = {
+        id: res.userId,
+        name: joinName.trim() || 'Guest',
+        isCreator: false,
+        joinedAt: Date.now(),
+      };
+      setParticipants([guestParticipant]);
       setInRoom(true);
+
+      try {
+        const syncData = await syncRoom(res.roomId, res.userId);
+        if (syncData.participants && syncData.participants.length > 0) {
+          setParticipants(syncData.participants);
+        }
+        setMessages(syncData.messages || []);
+        setFiles(syncData.files || []);
+      } catch (e) {
+        console.error('Initial room sync error:', e);
+      }
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to join room';
       setLobbyError(msg);
@@ -260,9 +296,12 @@ export default function RoomView() {
       setMessages(updated.messages || []);
       setFiles(updated.files || []);
       setParticipants(updated.participants || []);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Send message failed:', err);
-      alert('Failed to send. Please check your connection.');
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        'Failed to send. Please check your connection.';
+      alert(msg);
     } finally {
       setIsSending(false);
     }
