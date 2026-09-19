@@ -92,6 +92,62 @@ transfera download 52341 --output-name doc.pdf # Override filename
 | `--output` | `-o` | `.` | Output directory (automatically created if it doesn't exist) |
 | `--output-name` | | | Override download filename |
 
+### `transfera room` (Collaborative Multi-User Rooms)
+
+Create or join collaborative multi-user rooms for group file sharing and live chat.
+
+#### 1. Interactive Terminal UI
+Run `transfera` with no arguments to launch the guided interactive menu, then select **Option 3: 👥 Collaborative Rooms (Create/Join)** to create or join a room interactively.
+
+#### 2. Create a Room
+```bash
+transfera room create --name Alice --max 5
+transfera room create --name "Dev Team" --max 10 --port 54321
+
+# Create and enter the live interactive session immediately:
+transfera room create --name Alice -i
+```
+
+**Flags:**
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--name` | | `Host` | Display name of the room creator |
+| `--max` | | `5` | Maximum participants allowed (2–100) |
+| `--port` | | `0` (auto) | Custom room ID / port (49152–65535) |
+| `--interactive` | `-i` | `false` | Enter interactive collaboration session immediately |
+
+#### 3. Join a Room
+```bash
+transfera room join 52341 --name Bob
+
+# Join and enter the live interactive session immediately:
+transfera room join 52341 --name Bob -i
+```
+
+#### 4. Connect to an Active Room Session
+```bash
+transfera room session 52341 --user usr_abc123 --name Alice
+```
+
+#### 5. In-Room Commands (Interactive Session)
+When inside an interactive room session, you can chat by typing regular text, or run slash commands:
+- `/upload <file...>`: Share one or more files in the room with upload progress
+- `/files`: List all shared files with file IDs, sizes, and uploaders
+- `/download <file-id> [dir]`: Download a shared file to a directory
+- `/members`: List all members currently in the room (with Host indicator)
+- `/kick <user-id>`: Remove a member from the room (Host only)
+- `/clear`: Clear terminal screen and redraw room header
+- `/leave`: Gracefully leave the room and exit
+- `/help`: Display in-room command reference
+
+#### 6. Scriptable Subcommands
+- **Send chat message**: `transfera room message 52341 "Hello team!" --user usr_abc123`
+- **Upload files**: `transfera room upload 52341 doc.pdf archive.zip --user usr_abc123 --note "Project files"`
+- **Download file**: `transfera room download 52341 fil_a1b2c3 -o ./downloads/`
+- **Sync / view status**: `transfera room sync 52341`
+- **Kick participant**: `transfera room remove 52341 usr_target --user usr_host`
+- **Leave room**: `transfera room leave 52341 --user usr_abc123`
+
 ### `transfera install`
 
 Install the CLI binary globally to your system so you can run `transfera` from any terminal.

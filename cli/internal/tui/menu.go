@@ -60,7 +60,7 @@ func RunMenu(apiURL *string, verbose *bool) {
 
 	for {
 		printMenu(*apiURL)
-		choice := prompt(reader, fmt.Sprintf("\n  %s▶ Choose an option (1-7):%s ", colorCyan, colorReset))
+		choice := prompt(reader, fmt.Sprintf("\n  %s▶ Choose an option (1-8):%s ", colorCyan, colorReset))
 
 		switch strings.TrimSpace(choice) {
 		case "1":
@@ -68,18 +68,20 @@ func RunMenu(apiURL *string, verbose *bool) {
 		case "2":
 			handleDownload(reader, *apiURL, *verbose)
 		case "3":
-			handleHealth(*apiURL, *verbose)
+			handleRooms(reader, *apiURL, *verbose)
 		case "4":
-			handleInstall(reader)
+			handleHealth(*apiURL, *verbose)
 		case "5":
-			handleChangeServer(reader, apiURL)
+			handleInstall(reader)
 		case "6":
+			handleChangeServer(reader, apiURL)
+		case "7":
 			handleHelp()
-		case "7", "q", "Q", "exit", "quit":
+		case "8", "q", "Q", "exit", "quit":
 			fmt.Printf("\n  %s👋 Goodbye!%s\n\n", colorCyan, colorReset)
 			return
 		default:
-			fmt.Printf("\n  %s✗ Invalid option. Please enter 1-7.%s\n", colorRed, colorReset)
+			fmt.Printf("\n  %s✗ Invalid option. Please enter 1-8.%s\n", colorRed, colorReset)
 		}
 
 		fmt.Println()
@@ -115,32 +117,32 @@ func printBanner(apiURL string) {
 	// PATH installation status
 	if installer.IsInPath() && installer.IsInstalled() {
 		if installer.IsUpdateAvailable() {
-			fmt.Printf("  %s● Status:%s %s🔄 Update available%s — select option 4 to update binary in PATH\n",
+			fmt.Printf("  %s● Status:%s %s🔄 Update available%s — select option 5 to update binary in PATH\n",
 				colorDim, colorReset, colorYellow, colorReset)
 		} else {
 			fmt.Printf("  %s● Status:%s %s✓ Installed globally%s — type %stransfera%s anywhere\n",
 				colorDim, colorReset, colorGreen, colorReset, colorBold, colorReset)
 		}
 	} else {
-		fmt.Printf("  %s● Status:%s %s⚠ Not installed to PATH%s — select option 4 to install\n",
+		fmt.Printf("  %s● Status:%s %s⚠ Not installed to PATH%s — select option 5 to install\n",
 			colorDim, colorReset, colorYellow, colorReset)
 	}
 	fmt.Println()
 }
 
 func printMenu(apiURL string) {
-	var opt4Icon, opt4Text string
+	var opt5Icon, opt5Text string
 	if installer.IsInPath() && installer.IsInstalled() {
 		if installer.IsUpdateAvailable() {
-			opt4Icon = "🔄"
-			opt4Text = "Update in PATH (new version)        "
+			opt5Icon = "🔄"
+			opt5Text = "Update in PATH (new version)        "
 		} else {
-			opt4Icon = "⚡"
-			opt4Text = "Reinstall / Update in PATH          "
+			opt5Icon = "⚡"
+			opt5Text = "Reinstall / Update in PATH          "
 		}
 	} else {
-		opt4Icon = "⚡"
-		opt4Text = "Install to PATH                     "
+		opt5Icon = "⚡"
+		opt5Text = "Install to PATH                     "
 	}
 
 	fmt.Printf("  %s%s┌──────────────────────────────────────────────┐%s\n", colorCyan, colorBold, colorReset)
@@ -148,11 +150,12 @@ func printMenu(apiURL string) {
 	fmt.Printf("  %s%s├──────────────────────────────────────────────┤%s\n", colorCyan, colorBold, colorReset)
 	fmt.Printf("  %s%s│%s   %s1.%s 📤  Upload a file                       %s%s│%s\n", colorCyan, colorBold, colorReset, colorGreen, colorReset, colorCyan, colorBold, colorReset)
 	fmt.Printf("  %s%s│%s   %s2.%s 📥  Download a file                     %s%s│%s\n", colorCyan, colorBold, colorReset, colorGreen, colorReset, colorCyan, colorBold, colorReset)
-	fmt.Printf("  %s%s│%s   %s3.%s 🩺  Server Health Check                 %s%s│%s\n", colorCyan, colorBold, colorReset, colorGreen, colorReset, colorCyan, colorBold, colorReset)
-	fmt.Printf("  %s%s│%s   %s4.%s %s  %s%s%s│%s\n", colorCyan, colorBold, colorReset, colorYellow, colorReset, opt4Icon, opt4Text, colorCyan, colorBold, colorReset)
-	fmt.Printf("  %s%s│%s   %s5.%s ⚙️   Change Server URL                   %s%s│%s\n", colorCyan, colorBold, colorReset, colorDim, colorReset, colorCyan, colorBold, colorReset)
-	fmt.Printf("  %s%s│%s   %s6.%s ❓  Help & CLI Reference                %s%s│%s\n", colorCyan, colorBold, colorReset, colorDim, colorReset, colorCyan, colorBold, colorReset)
-	fmt.Printf("  %s%s│%s   %s7.%s ❌  Exit                                %s%s│%s\n", colorCyan, colorBold, colorReset, colorRed, colorReset, colorCyan, colorBold, colorReset)
+	fmt.Printf("  %s%s│%s   %s3.%s 👥  Collaborative Rooms (Create/Join)    %s%s│%s\n", colorCyan, colorBold, colorReset, colorGreen, colorReset, colorCyan, colorBold, colorReset)
+	fmt.Printf("  %s%s│%s   %s4.%s 🩺  Server Health Check                 %s%s│%s\n", colorCyan, colorBold, colorReset, colorGreen, colorReset, colorCyan, colorBold, colorReset)
+	fmt.Printf("  %s%s│%s   %s5.%s %s  %s%s%s│%s\n", colorCyan, colorBold, colorReset, colorYellow, colorReset, opt5Icon, opt5Text, colorCyan, colorBold, colorReset)
+	fmt.Printf("  %s%s│%s   %s6.%s ⚙️   Change Server URL                   %s%s│%s\n", colorCyan, colorBold, colorReset, colorDim, colorReset, colorCyan, colorBold, colorReset)
+	fmt.Printf("  %s%s│%s   %s7.%s ❓  Help & CLI Reference                %s%s│%s\n", colorCyan, colorBold, colorReset, colorDim, colorReset, colorCyan, colorBold, colorReset)
+	fmt.Printf("  %s%s│%s   %s8.%s ❌  Exit                                %s%s│%s\n", colorCyan, colorBold, colorReset, colorRed, colorReset, colorCyan, colorBold, colorReset)
 	fmt.Printf("  %s%s└──────────────────────────────────────────────┘%s\n", colorCyan, colorBold, colorReset)
 }
 
@@ -274,6 +277,100 @@ func handleDownload(reader *bufio.Reader, apiURL string, verbose bool) {
 		}
 	}
 	fmt.Printf("    Saved to: %s%s%s\n", colorBold, result.FilePath, colorReset)
+}
+
+func handleRooms(reader *bufio.Reader, apiURL string, verbose bool) {
+	fmt.Printf("\n  %s%s── Collaborative Rooms ──%s\n\n", colorCyan, colorBold, colorReset)
+	fmt.Printf("  %s1.%s ➕ Create a new room\n", colorGreen, colorReset)
+	fmt.Printf("  %s2.%s 🔗 Join an existing room\n", colorGreen, colorReset)
+	fmt.Printf("  %s3.%s 🔙 Back to main menu\n", colorDim, colorReset)
+
+	choice := prompt(reader, fmt.Sprintf("\n  %s▶ Choose an option (1-3):%s ", colorCyan, colorReset))
+	switch strings.TrimSpace(choice) {
+	case "1":
+		handleCreateRoom(reader, apiURL, verbose)
+	case "2":
+		handleJoinRoom(reader, apiURL, verbose)
+	case "3", "b", "B", "back":
+		return
+	default:
+		fmt.Printf("  %s✗ Invalid option.%s\n", colorRed, colorReset)
+	}
+}
+
+func handleCreateRoom(reader *bufio.Reader, apiURL string, verbose bool) {
+	fmt.Printf("\n  %s%s── Create a Collaborative Room ──%s\n\n", colorCyan, colorBold, colorReset)
+
+	name := prompt(reader, fmt.Sprintf("  %sYour display name (Enter = Host):%s ", colorWhite, colorReset))
+	name = strings.TrimSpace(name)
+	if name == "" {
+		name = "Host"
+	}
+
+	capStr := prompt(reader, fmt.Sprintf("  %sMax capacity (2-100, default 5):%s ", colorWhite, colorReset))
+	capacity := 5
+	if capStr != "" {
+		if n, err := strconv.Atoi(strings.TrimSpace(capStr)); err == nil && n >= 2 && n <= 100 {
+			capacity = n
+		}
+	}
+
+	portStr := prompt(reader, fmt.Sprintf("  %sCustom Room ID / Port (Enter = auto-assign):%s ", colorWhite, colorReset))
+	customPort := 0
+	if portStr != "" {
+		if p, err := strconv.Atoi(strings.TrimSpace(portStr)); err == nil && p >= 1 && p <= 65535 {
+			customPort = p
+		}
+	}
+
+	client := api.NewClient(apiURL, verbose)
+	fmt.Printf("\n  %sCreating collaborative room...%s\n", colorDim, colorReset)
+	resp, err := client.CreateRoom(name, capacity, customPort)
+	if err != nil {
+		fmt.Printf("  %s✗ Failed to create room: %s%s\n", colorRed, err, colorReset)
+		return
+	}
+
+	fmt.Printf("\n  %s✓ Room created successfully!%s\n", colorGreen, colorReset)
+	fmt.Printf("  %s┌──────────────────────────────────────────────┐%s\n", colorCyan, colorReset)
+	fmt.Printf("  %s│%s  Room ID (Port) : %s%s%-28d%s%s│%s\n", colorCyan, colorReset, colorBold, colorGreen, resp.RoomID, colorReset, colorCyan, colorReset)
+	fmt.Printf("  %s│%s  Host           : %-28s%s│%s\n", colorCyan, colorReset, name, colorCyan, colorReset)
+	fmt.Printf("  %s│%s  User ID        : %-28s%s│%s\n", colorCyan, colorReset, resp.UserID, colorCyan, colorReset)
+	fmt.Printf("  %s│%s  Max Capacity   : %-28s%s│%s\n", colorCyan, colorReset, fmt.Sprintf("%d participants", resp.MaxParticipants), colorCyan, colorReset)
+	fmt.Printf("  %s└──────────────────────────────────────────────┘%s\n", colorCyan, colorReset)
+
+	enter := prompt(reader, fmt.Sprintf("\n  %sEnter interactive room session now? (Y/n):%s ", colorWhite, colorReset))
+	if strings.ToLower(strings.TrimSpace(enter)) != "n" {
+		RunRoomSession(client, resp.RoomID, resp.UserID, name, true, resp.MaxParticipants)
+	}
+}
+
+func handleJoinRoom(reader *bufio.Reader, apiURL string, verbose bool) {
+	fmt.Printf("\n  %s%s── Join a Collaborative Room ──%s\n\n", colorCyan, colorBold, colorReset)
+
+	roomStr := prompt(reader, fmt.Sprintf("  %sRoom ID (Port):%s ", colorWhite, colorReset))
+	port, err := strconv.Atoi(strings.TrimSpace(roomStr))
+	if err != nil || port <= 0 || port > 65535 {
+		fmt.Printf("  %s✗ Invalid room ID '%s'. Must be a port number (1-65535).%s\n", colorRed, roomStr, colorReset)
+		return
+	}
+
+	name := prompt(reader, fmt.Sprintf("  %sYour display name (Enter = Guest):%s ", colorWhite, colorReset))
+	name = strings.TrimSpace(name)
+	if name == "" {
+		name = "Guest"
+	}
+
+	client := api.NewClient(apiURL, verbose)
+	fmt.Printf("\n  %sJoining room %d...%s\n", colorDim, port, colorReset)
+	resp, err := client.JoinRoom(port, name)
+	if err != nil {
+		fmt.Printf("  %s✗ Failed to join room: %s%s\n", colorRed, err, colorReset)
+		return
+	}
+
+	fmt.Printf("\n  %s✓ Joined room %d successfully!%s\n", colorGreen, port, colorReset)
+	RunRoomSession(client, resp.RoomID, resp.UserID, name, false, resp.MaxParticipants)
 }
 
 func handleHealth(apiURL string, verbose bool) {
