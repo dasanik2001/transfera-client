@@ -35,7 +35,7 @@ CORS is enabled for browser requests from the frontend.
 |---------|--------|
 | **P2P download** | Zero-RAM chunked streaming via `set_content_provider` (64 KB buffer); supports HTTP Range Requests (`206 Partial Content`) for resumable downloads |
 | **Max downloads** | Uploader sets N (default 1); invite removed after N successful downloads |
-| **Upload limits** | UI: max **100 MB**, **all file types** (audio, video, archives, documents) |
+| **Upload limits** | UI & API default **500 MB** (configurable up to **8 GB / 8192 MB** via `TRANSFERA_MAX_UPLOAD_MB`), **all file types** (audio, video, archives, documents) |
 | **Logging** | `[INFO]` / `[ERROR]` to stdout; `TRANSFERA_LOG_HTTP`, `TRANSFERA_LOG_VERBOSE` |
 
 See **[client/public/manual/features.html](client/public/manual/features.html)** (deployed with the app).

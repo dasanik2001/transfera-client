@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import FileUpload from '@/components/FileUpload';
+import FileUpload, { ShareMode, UploadProgressInfo } from '@/components/FileUpload';
 import FileDownload from '@/components/FileDownload';
-import InviteCode from '@/components/InviteCode';
+import InviteCode, { ActiveShare } from '@/components/InviteCode';
 import RoomView from '@/components/RoomView';
 import axios from 'axios';
 import { apiUrl, API_BASE_URL } from '@/lib/api';
@@ -12,7 +12,8 @@ import {
   getResponseHeader,
   resolveDownloadFilename,
 } from '@/lib/downloadFilename';
-import { validateUploadFile } from '@/lib/uploadValidation';
+import { validateUploadFile, validateUploadFiles } from '@/lib/uploadValidation';
+import { createZipBundle } from '@/lib/zipUtils';
 import {
   DEFAULT_MAX_DOWNLOADS,
   MAX_MAX_DOWNLOADS,
@@ -22,7 +23,8 @@ import {
 } from '@/lib/uploadLimits';
 
 export default function Home() {
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [activeShares, setActiveShares] = useState<ActiveShare[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgressInfo | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [port, setPort] = useState<number | null>(null);
@@ -73,40 +75,145 @@ export default function Home() {
     };
   }, []);
 
-  const handleFileUpload = async (file: File) => {
-    const validationError = validateUploadFile(file);
+  const handleFileUpload = async (
+    files: File[],
+    mode: ShareMode,
+    archiveName?: string,
+    compressVideosVP09?: boolean
+  ) => {
+    const validationError = validateUploadFiles(files);
     if (validationError) {
       alert(validationError);
-      setUploadedFile(null);
-      setPort(null);
       return;
     }
 
-    setUploadedFile(file);
     setIsUploading(true);
-
     const allowedDownloads = clampMaxDownloads(maxDownloads);
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('maxDownloads', String(allowedDownloads));
+      if (mode === 'zip' && files.length > 1) {
+        // Step 1: Zip the files with VP09 video compression and DEFLATE Level 9
+        setUploadProgress({
+          step: 'zipping',
+          current: 0,
+          total: 100,
+          filename: archiveName || 'transfera-bundle.zip',
+          percent: 0,
+        });
 
-      // Do not set Content-Type manually — axios/browser must add the boundary parameter.
-      const response = await axios.post(apiUrl('/api/upload'), formData);
+        const zipFile = await createZipBundle(files, {
+          archiveName: archiveName || 'transfera-bundle.zip',
+          compressVideosVP09: compressVideosVP09 !== false,
+          onVideoProgress: (vidName, percent) => {
+            setUploadProgress({
+              step: 'compressing-video',
+              current: percent,
+              total: 100,
+              filename: vidName,
+              percent,
+            });
+          },
+          onProgress: (percent) => {
+            setUploadProgress({
+              step: 'zipping',
+              current: percent,
+              total: 100,
+              filename: archiveName || 'transfera-bundle.zip',
+              percent,
+            });
+          },
+        });
 
-      const invitePort = response.data?.port;
-      if (typeof invitePort !== 'number' || invitePort <= 0) {
-        throw new Error('Invalid response from server');
+        // Safety check on generated zip file size
+        const zipValidationError = validateUploadFile(zipFile);
+        if (zipValidationError) {
+          alert(zipValidationError);
+          return;
+        }
+
+        // Step 2: Upload the zip file
+        setUploadProgress({
+          step: 'uploading',
+          current: 1,
+          total: 1,
+          filename: zipFile.name,
+        });
+
+        const formData = new FormData();
+        formData.append('file', zipFile);
+        formData.append('maxDownloads', String(allowedDownloads));
+
+        const response = await axios.post(apiUrl('/api/upload'), formData);
+        const invitePort = response.data?.port;
+        if (typeof invitePort !== 'number' || invitePort <= 0) {
+          throw new Error('Invalid response from server');
+        }
+
+        const serverMax =
+          typeof response.data?.maxDownloads === 'number'
+            ? clampMaxDownloads(response.data.maxDownloads)
+            : allowedDownloads;
+
+        const newShare: ActiveShare = {
+          id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          port: invitePort,
+          filename: zipFile.name,
+          size: zipFile.size,
+          maxDownloads: serverMax,
+          isZip: true,
+          bundledFiles: files.map((f) => f.name),
+          createdAt: Date.now(),
+        };
+
+        setActiveShares((prev) => [newShare, ...prev]);
+        setPort(invitePort);
+        setInviteMaxDownloads(serverMax);
+      } else {
+        // Separate invite codes mode (or single file)
+        const createdShares: ActiveShare[] = [];
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          setUploadProgress({
+            step: 'uploading',
+            current: i + 1,
+            total: files.length,
+            filename: file.name,
+          });
+
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('maxDownloads', String(allowedDownloads));
+
+          const response = await axios.post(apiUrl('/api/upload'), formData);
+          const invitePort = response.data?.port;
+          if (typeof invitePort !== 'number' || invitePort <= 0) {
+            throw new Error(`Invalid response from server for ${file.name}`);
+          }
+
+          const serverMax =
+            typeof response.data?.maxDownloads === 'number'
+              ? clampMaxDownloads(response.data.maxDownloads)
+              : allowedDownloads;
+
+          createdShares.push({
+            id: `${Date.now()}-${i}-${Math.random().toString(36).substring(2, 9)}`,
+            port: invitePort,
+            filename: file.name,
+            size: file.size,
+            maxDownloads: serverMax,
+            isZip: false,
+            createdAt: Date.now(),
+          });
+        }
+
+        setActiveShares((prev) => [...createdShares, ...prev]);
+        if (createdShares.length > 0) {
+          setPort(createdShares[0].port);
+          setInviteMaxDownloads(createdShares[0].maxDownloads);
+        }
       }
-      const serverMax =
-        typeof response.data?.maxDownloads === 'number'
-          ? clampMaxDownloads(response.data.maxDownloads)
-          : allowedDownloads;
-      setPort(invitePort);
-      setInviteMaxDownloads(serverMax);
     } catch (error) {
-      console.error('Error uploading file:', error);
+      console.error('Error uploading file(s):', error);
       const message =
         axios.isAxiosError(error) && error.response?.data
           ? typeof error.response.data === 'string'
@@ -116,6 +223,7 @@ export default function Home() {
       alert(message);
     } finally {
       setIsUploading(false);
+      setUploadProgress(null);
     }
   };
 
@@ -183,7 +291,7 @@ export default function Home() {
                 }`}
               onClick={() => handleTabChange('upload')}
             >
-              Share a File
+              Share Files
             </button>
             <button
               className={`px-4 py-2 font-medium ${activeTab === 'download'
@@ -236,24 +344,21 @@ export default function Home() {
 
         {activeTab === 'upload' ? (
           <div>
-            <FileUpload onFileUpload={handleFileUpload} isUploading={isUploading} />
+            <FileUpload
+              onFileUpload={handleFileUpload}
+              isUploading={isUploading}
+              uploadProgress={uploadProgress}
+            />
 
-            {uploadedFile && !isUploading && (
-              <div className="mt-4 p-3 bg-gray-50 rounded-md">
-                <p className="text-sm text-gray-600">
-                  Selected file: <span className="font-medium">{uploadedFile.name}</span> ({Math.round(uploadedFile.size / 1024)} KB)
-                </p>
-              </div>
-            )}
-
-            {isUploading && (
-              <div className="mt-6 text-center">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent"></div>
-                <p className="mt-2 text-gray-600">Uploading file...</p>
-              </div>
-            )}
-
-            <InviteCode port={port} maxDownloads={inviteMaxDownloads} />
+            <InviteCode
+              port={port}
+              maxDownloads={inviteMaxDownloads}
+              shares={activeShares}
+              onRemoveShare={(id) =>
+                setActiveShares((prev) => prev.filter((s) => s.id !== id))
+              }
+              onClearAll={() => setActiveShares([])}
+            />
           </div>
         ) : activeTab === 'download' ? (
           <div>

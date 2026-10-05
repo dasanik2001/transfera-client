@@ -41,9 +41,9 @@ var (
 	maxDownloads int
 
 	// maxSizeMB is the client-side file size limit in megabytes.
-	// Default is 100 MB, matching the web UI's MAX_UPLOAD_MB.
+	// Default is 500 MB, matching the web UI's MAX_UPLOAD_MB.
 	// Users can increase this if the server is configured for larger files
-	// (via TRANSFERA_MAX_UPLOAD_MB environment variable on the server).
+	// (via TRANSFERA_MAX_UPLOAD_MB environment variable on the server, up to 8192 MB).
 	maxSizeMB int
 )
 
