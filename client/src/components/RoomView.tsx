@@ -28,6 +28,7 @@ import {
   RoomParticipant,
   RoomFile,
 } from '@/lib/api';
+import { validateUploadFiles } from '@/lib/uploadValidation';
 
 function formatBytes(bytes: number): string {
   if (!bytes || bytes === 0) return '0 B';
@@ -386,7 +387,13 @@ export default function RoomView() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const filesArray = Array.from(e.target.files);
-      setSelectedFiles((prev) => [...prev, ...filesArray]);
+      const combined = [...selectedFiles, ...filesArray];
+      const err = validateUploadFiles(combined);
+      if (err) {
+        alert(err);
+        return;
+      }
+      setSelectedFiles(combined);
     }
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -413,7 +420,13 @@ export default function RoomView() {
     setIsDraggingOverChat(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const filesArray = Array.from(e.dataTransfer.files);
-      setSelectedFiles((prev) => [...prev, ...filesArray]);
+      const combined = [...selectedFiles, ...filesArray];
+      const err = validateUploadFiles(combined);
+      if (err) {
+        alert(err);
+        return;
+      }
+      setSelectedFiles(combined);
     }
   };
 

@@ -145,7 +145,7 @@ func printMenu(apiURL string) {
 	fmt.Printf("  %s%s├──────────────────────────────────────────────┤%s\n", colorCyan, colorBold, colorReset)
 	fmt.Printf("  %s%s│%s   %s1.%s 📤  Upload a file                       %s%s│%s\n", colorCyan, colorBold, colorReset, colorGreen, colorReset, colorCyan, colorBold, colorReset)
 	fmt.Printf("  %s%s│%s   %s2.%s 📥  Download a file                     %s%s│%s\n", colorCyan, colorBold, colorReset, colorGreen, colorReset, colorCyan, colorBold, colorReset)
-	fmt.Printf("  %s%s│%s   %s3.%s 👥  Collaborative Rooms (Create/Join)    %s%s│%s\n", colorCyan, colorBold, colorReset, colorGreen, colorReset, colorCyan, colorBold, colorReset)
+	fmt.Printf("  %s%s│%s   %s3.%s 👥  Collaborative Rooms (Create/Join)   %s%s│%s\n", colorCyan, colorBold, colorReset, colorGreen, colorReset, colorCyan, colorBold, colorReset)
 	fmt.Printf("  %s%s│%s   %s4.%s 🩺  Server Health Check                 %s%s│%s\n", colorCyan, colorBold, colorReset, colorGreen, colorReset, colorCyan, colorBold, colorReset)
 	fmt.Printf("  %s%s│%s   %s5.%s %s  %s%s%s│%s\n", colorCyan, colorBold, colorReset, colorYellow, colorReset, opt5Icon, opt5Text, colorCyan, colorBold, colorReset)
 	fmt.Printf("  %s%s│%s   %s6.%s ⚙️   Change Server URL                   %s%s│%s\n", colorCyan, colorBold, colorReset, colorDim, colorReset, colorCyan, colorBold, colorReset)

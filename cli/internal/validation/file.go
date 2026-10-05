@@ -25,9 +25,9 @@ import (
 // =========================================================================
 
 // DefaultMaxUploadMB is the default maximum file size in megabytes.
-// This matches MAX_UPLOAD_MB = 100 in client/src/lib/uploadValidation.ts
-// and the server's default in FileController constructor.
-const DefaultMaxUploadMB = 100
+// This matches MAX_UPLOAD_MB = 500 in client/src/lib/uploadValidation.ts
+// and the server's default in FileController constructor (configurable up to 8192 MB).
+const DefaultMaxUploadMB = 500
 
 // =========================================================================
 // ResolvePath — expand home directory (~) and strip quotes

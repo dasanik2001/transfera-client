@@ -139,25 +139,39 @@ namespace server::services
         std::error_code ec;
         fs::create_directories(uploadDir_, ec);
 
-        // Generous timeouts for large 100 MB+ transfers over slower links
-        server_.set_read_timeout(300, 0);
-        server_.set_write_timeout(300, 0);
-
-        // Configurable max upload size (default 100 MB + 2 MB multipart header headroom)
-        std::size_t maxUploadMb = 100;
+        // Configurable max upload size (default 500 MB + 4 MB multipart header headroom, up to 8192 MB / 8 GB)
+        std::size_t maxUploadMb = 500;
         if (const char *env = std::getenv("TRANSFERA_MAX_UPLOAD_MB"); env && *env)
         {
             try
             {
                 const unsigned long mb = std::stoul(env);
-                if (mb > 0 && mb <= 4096)
+                if (mb > 0 && mb <= 8192)
                     maxUploadMb = mb;
             }
             catch (...)
             {
             }
         }
-        constexpr std::size_t kMultipartHeadroomBytes = 2 * 1024 * 1024;
+
+        // Generous timeouts for large transfers up to 8 GB over slower links (default 1800s / 30m)
+        time_t timeoutSec = 1800;
+        if (const char *envTimeout = std::getenv("TRANSFERA_TIMEOUT_SECONDS"); envTimeout && *envTimeout)
+        {
+            try
+            {
+                const unsigned long t = std::stoul(envTimeout);
+                if (t > 0 && t <= 86400)
+                    timeoutSec = static_cast<time_t>(t);
+            }
+            catch (...)
+            {
+            }
+        }
+        server_.set_read_timeout(timeoutSec, 0);
+        server_.set_write_timeout(timeoutSec, 0);
+
+        constexpr std::size_t kMultipartHeadroomBytes = 4 * 1024 * 1024;
         server_.set_payload_max_length((maxUploadMb * 1024 * 1024) + kMultipartHeadroomBytes);
 
         registerRoutes();

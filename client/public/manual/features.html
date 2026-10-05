@@ -44,10 +44,13 @@
           </p>
         </article>
         <article class="feature-card">
-          <h3>Upload limits</h3>
+          <h3>Upload limits &amp; multi-file sharing</h3>
           <p>
-            Frontend enforces <strong>100 MB</strong> max size. <strong>All file types</strong> are
-            supported — audio (MP3, WAV), video (MP4, MOV, WebM), archives (ZIP, 7z), documents, and more.
+            Default upload limit is <strong>500 MB total</strong> (server supports up to <strong>8 GB</strong> via <code>TRANSFERA_MAX_UPLOAD_MB</code>).
+            Users can select multiple files to share at once, with the choice to generate separate invite codes or bundle all files into a single ZIP archive.
+            ZIP bundling applies <strong>DEFLATE Level 9</strong> (best ZIP compression) and client-side <strong>VP09 (WebM)</strong>
+            video compression to minimize payload size.
+            <strong>All file types</strong> are supported — audio, video, archives, documents, and more.
           </p>
         </article>
         <article class="feature-card">
@@ -87,9 +90,9 @@
           </thead>
           <tbody>
             <tr>
-              <td>Max file size</td>
-              <td>Browser (dropzone)</td>
-              <td>100 MB — <code>client/src/lib/uploadValidation.ts</code></td>
+              <td>Max total size</td>
+              <td>Browser &amp; API</td>
+              <td>Default 500 MB total combined cap (server configurable up to 8192 MB / 8 GB via <code>TRANSFERA_MAX_UPLOAD_MB</code>) — <code>client/src/lib/uploadValidation.ts</code></td>
             </tr>
             <tr>
               <td>No videos</td>
