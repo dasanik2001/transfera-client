@@ -9,7 +9,6 @@ import {
   FiArchive,
   FiLayers,
   FiAlertCircle,
-  FiTrash2,
 } from 'react-icons/fi';
 import {
   MAX_UPLOAD_BYTES,
